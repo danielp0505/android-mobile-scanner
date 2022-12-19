@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">mobile-scanner</string>
+    <string name="app_name">Mobile Scanner</string>
+    <string name="share_documents">Dokumente teilen</string>
+    <string name="no_documents_found">Es wurden keine Dokumente gefunden</string>
+    <string name="unnamed_document">Unbenanntes Dokument</string>
+    <string name="delete_documents">Dokumente löschen</string>
 </resources>
