@@ -25,8 +25,7 @@ variables:
   # when the script was last modified for latest compileSdkVersion, it was which is written down below
   ANDROID_SDK_TOOLS: "7583922"
 
-tags:
-  - android
+
 # Packages installation before running script
 before_script:
   - apt-get --quiet update --yes
@@ -66,6 +65,8 @@ before_script:
 # Basic android and gradle stuff
 # Check linting
 lintDebug:
+  tags:
+  - android
   interruptible: true
   stage: build
   script:
@@ -73,6 +74,8 @@ lintDebug:
 
 # Make Project
 assembleDebug:
+  tags:
+  - android
   interruptible: true
   stage: build
   script:
@@ -83,6 +86,8 @@ assembleDebug:
 
 # Run all tests, if any fails, interrupt the pipeline(fail it)
 debugTests:
+  tags:
+  - android
   interruptible: true
   stage: test
   script:
