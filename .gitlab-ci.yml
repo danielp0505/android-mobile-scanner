@@ -27,6 +27,8 @@ variables:
 
 # Packages installation before running script
 before_script:
+  tags:
+    - android
   - apt-get --quiet update --yes
   - apt-get --quiet install --yes wget tar unzip lib32stdc++6 lib32z1
 
