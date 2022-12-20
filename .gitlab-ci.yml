@@ -25,10 +25,10 @@ variables:
   # when the script was last modified for latest compileSdkVersion, it was which is written down below
   ANDROID_SDK_TOOLS: "7583922"
 
+tags:
+  - android
 # Packages installation before running script
 before_script:
-  tags:
-    - android
   - apt-get --quiet update --yes
   - apt-get --quiet install --yes wget tar unzip lib32stdc++6 lib32z1
 
