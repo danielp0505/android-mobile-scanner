@@ -3,10 +3,13 @@ package de.thm.ap.mobile_scanner.ui.screens
 import android.app.Application
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Create
@@ -16,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,7 +43,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     val documents: LiveData<List<Document>> = docDAO.findAllDocumentsSync()
 
     var contextualMode by mutableStateOf(false)
-    var selectedDocuments: MutableList<Document> = mutableStateListOf()
+    var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
 
     fun createTestData() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -72,6 +76,33 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
             docDAO.delete(document)
         }
     }
+
+    fun deleteSelection(){
+        viewModelScope.launch(Dispatchers.IO){
+            docDAO.deleteDocumentList(selectedDocuments)
+            launch(Dispatchers.Main){
+                exitContextualMode()
+            }
+        }
+    }
+
+    fun toggleWithSelection(document: Document){
+        if(!contextualMode){
+            contextualMode = true
+        }
+        if (selectedDocuments.removeIf { it.documentId == document.documentId }) {
+            if (selectedDocuments.size == 0) {
+                exitContextualMode()
+            }
+        } else {
+            selectedDocuments.add(document)
+        }
+    }
+
+    fun exitContextualMode(){
+        contextualMode = false
+        selectedDocuments.clear()
+    }
 }
 
 @Composable
@@ -85,14 +116,6 @@ fun DocumentsListScreen() {
                 title = { Text(stringResource(id = R.string.app_name)) },
                 actions = {
                     IconButton(
-                        onClick = {}
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = stringResource(id = R.string.share_documents)
-                        )
-                    }
-                    IconButton(
                         onClick = {
                             vm.createTestData()
                         }
@@ -102,15 +125,25 @@ fun DocumentsListScreen() {
                             contentDescription = "Create Test Data"
                         )
                     }
-                    IconButton(
-                        onClick = {
-
+                    if (vm.contextualMode) {
+                        IconButton(
+                            onClick = {}
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = stringResource(id = R.string.share_documents)
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(id = R.string.delete_documents)
-                        )
+                        IconButton(
+                            onClick = {
+                                vm.deleteSelection()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = stringResource(id = R.string.delete_documents)
+                            )
+                        }
                     }
                 }
             )
@@ -125,8 +158,9 @@ fun DocumentsListScreen() {
                     .padding(4.dp)
             )
         } else {
-            LazyColumn(contentPadding = innerPadding) {
-                items(documents) { document ->
+            val lazyListState = rememberLazyListState()
+            LazyColumn(contentPadding = innerPadding, state = lazyListState) {
+                items(items = documents, key = {it.documentId!!}) { document ->
                     DocumentListItem(document = document, vm)
                     Divider(color = Color.Gray)
                 }
@@ -152,7 +186,13 @@ fun DocumentListItem(document: Document, viewModel: DocumentsListViewModel) {
     ) {
         ListItem(
             modifier = Modifier
-                .offset { IntOffset(swipeableState.offset.value.roundToInt(), 0) },
+                .offset { IntOffset(swipeableState.offset.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = { viewModel.toggleWithSelection(document) }
+                    )
+                }
+                .background(color = if (viewModel.selectedDocuments.contains(document)) Color.Green else MaterialTheme.colors.background),
             text = {
                 val title: String =
                     if (document.title == null) stringResource(id = R.string.unnamed_document) else document.title!!

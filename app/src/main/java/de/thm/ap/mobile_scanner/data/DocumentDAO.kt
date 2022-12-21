@@ -27,6 +27,9 @@ interface DocumentDAO {
   @Delete
   suspend fun delete(document: Document): Int
 
+  @Delete
+  suspend fun deleteDocumentList(documents: List<Document>)
+
   @Query("SELECT * from tag")
   fun findAllTags(): List<Tag>
 
@@ -38,6 +41,9 @@ interface DocumentDAO {
 
   @Delete
   suspend fun delete(tag: Tag): Int
+
+  @Delete
+  suspend fun deleteTagList(tags: List<Tag>)
 
   @Insert(onConflict = OnConflictStrategy.IGNORE)
   suspend fun persist(documentTagRelation: DocumentTagRelation)
