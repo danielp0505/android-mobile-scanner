@@ -5,4 +5,6 @@
     <string name="unnamed_document">Unbenanntes Dokument</string>
     <string name="delete_documents">Dokumente löschen</string>
     <string name="delete">Löschen</string>
+    <string name="create_document">Dokument erstellen</string>
+    <string name="number_of_documents">Anzahl Dokumente</string>
 </resources>

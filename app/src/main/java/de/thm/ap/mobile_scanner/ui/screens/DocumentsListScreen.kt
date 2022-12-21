@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
@@ -147,6 +148,14 @@ fun DocumentsListScreen() {
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            AddDocumentButton()
+        },
+        bottomBar = {
+            BottomAppBar() {
+                Text(text = stringResource(id = R.string.number_of_documents) + ": " + documents.size)
+            }
         }
     ) { innerPadding ->
         if (documents.isEmpty()) {
@@ -166,6 +175,13 @@ fun DocumentsListScreen() {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AddDocumentButton(){
+    FloatingActionButton(onClick = { /*do something*/}) {
+        Icon(Icons.Default.Add, contentDescription = stringResource(id = R.string.create_document))
     }
 }
 
@@ -189,7 +205,12 @@ fun DocumentListItem(document: Document, viewModel: DocumentsListViewModel) {
                 .offset { IntOffset(swipeableState.offset.value.roundToInt(), 0) }
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onLongPress = { viewModel.toggleWithSelection(document) }
+                        onLongPress = { viewModel.toggleWithSelection(document) },
+                        onPress = {
+                            if (viewModel.contextualMode) {
+                                viewModel.toggleWithSelection(document)
+                            }
+                        }
                     )
                 }
                 .background(color = if (viewModel.selectedDocuments.contains(document)) Color.Green else MaterialTheme.colors.background),
