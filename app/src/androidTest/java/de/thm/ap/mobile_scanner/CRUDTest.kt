@@ -4,6 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.DocumentImageRelation
+import de.thm.ap.mobile_scanner.model.Image
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -91,6 +93,39 @@ class CRUDTest {
     assertEquals(orig_size + 1, dao.findAllDocuments().size)
     dao.delete(Document(id))
     assertEquals(orig_size, dao.findAllDocuments().size)
+
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun getDocumentsWithImages() = runTest {
+    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+    val dao = AppDatabase.getDb(appContext).documentDao()
+
+    val docuemntId = dao.persist(Document(title = "Simple Document"))
+    val imageId = dao.persist(Image(uri = "content://test"))
+    dao.persist(DocumentImageRelation(docuemntId, imageId))
+    assert(dao.getDocumentsWithImages().any {
+      it.document.documentId == docuemntId &&
+              it.images.size == 1 &&
+              it.images[0].imageId == imageId
+    })
+
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun getDocumentWithImages() = runTest {
+    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+    val dao = AppDatabase.getDb(appContext).documentDao()
+
+    val docuemntId = dao.persist(Document(title = "Simple Document"))
+    val imageId = dao.persist(Image(uri = "content://test"))
+    dao.persist(DocumentImageRelation(docuemntId, imageId))
+    val documentWithImages = dao.getDocumentWithImages(docuemntId)
+    assertEquals(docuemntId, documentWithImages.document.documentId)
+    assertEquals(1, documentWithImages.images.size)
+    assertEquals(imageId, documentWithImages.images[0].imageId)
 
   }
 

@@ -2,9 +2,7 @@ package de.thm.ap.mobile_scanner.data
 
 import androidx.lifecycle.LiveData
 import androidx.room.*
-import de.thm.ap.mobile_scanner.model.Document
-import de.thm.ap.mobile_scanner.model.DocumentTagRelation
-import de.thm.ap.mobile_scanner.model.Tag
+import de.thm.ap.mobile_scanner.model.*
 
 @Dao
 interface DocumentDAO {
@@ -51,6 +49,12 @@ interface DocumentDAO {
   suspend fun persist(documentID: Long, tagID: Long) =
     persist(DocumentTagRelation(documentID, tagID))
 
+  @Insert(onConflict = OnConflictStrategy.IGNORE)
+  suspend fun persist(image: Image): Long
+
+  @Insert(onConflict = OnConflictStrategy.IGNORE)
+  suspend fun persist(documentImageRelation: DocumentImageRelation)
+
 
   data class TagWithDocuments(
     @Embedded
@@ -67,5 +71,31 @@ interface DocumentDAO {
   @Transaction
   @Query("SELECT * FROM tag")
   suspend fun getTagsWithDocument(): List<TagWithDocuments>
+
+
+
+  data class DocumentWithImages(
+    @Embedded
+    val document: Document,
+    @Relation(
+      parentColumn = "documentId",
+      entityColumn = "imageId",
+      associateBy = Junction(DocumentImageRelation::class)
+    )
+    val images: List<Image>
+
+  )
+
+  @Transaction
+  @Query("SELECT * FROM document")
+  suspend fun getDocumentsWithImages(): List<DocumentWithImages>
+
+  @Transaction
+  @Query("SELECT * FROM document where documentId = :documentId")
+  suspend fun getDocumentWithImages(documentId: Long): DocumentWithImages
+
+  @Transaction
+  @Query("SELECT * FROM document where documentId = :documentId")
+  fun getDocumentWithImagesSync(documentId: Long): LiveData<DocumentWithImages>
 }
 

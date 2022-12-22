@@ -5,7 +5,8 @@ import androidx.room.PrimaryKey
 
 @Entity()
 data class Document(
-  @PrimaryKey var documentId: Long? = null,
+  @PrimaryKey
+  var documentId: Long? = null,
   var uri: String? = null,
   var title: String? = null,
 )
