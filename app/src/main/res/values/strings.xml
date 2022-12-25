@@ -7,4 +7,5 @@
     <string name="delete">Löschen</string>
     <string name="create_document">Dokument erstellen</string>
     <string name="number_of_documents">Anzahl Dokumente</string>
+    <string name="unknown">Unbekannt</string>
 </resources>

@@ -15,6 +15,10 @@ interface DocumentDAO {
   @Query("SELECT * from document")
   fun findAllDocumentsSync(): LiveData<List<Document>>
 
+  @Transaction
+  @Query("SELECT * from document")
+  fun findAllDocumentsWithTagsSync(): LiveData<List<DocumentWithTags>>
+
   @Query("SELECT * from document WHERE documentId = :documentId")
   fun findDocumentById(documentId: Long): Document
 
@@ -67,7 +71,17 @@ interface DocumentDAO {
       associateBy = Junction(DocumentTagRelation::class)
     )
     val documents: List<Document>
+  )
 
+  data class DocumentWithTags(
+    @Embedded
+    val document: Document,
+    @Relation(
+      parentColumn = "documentId",
+      entityColumn = "tagId",
+      associateBy = Junction(DocumentTagRelation::class)
+    )
+    val tags: List<Tag>
   )
 
   @Transaction

@@ -1,15 +1,17 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
+import android.service.autofill.OnClickAction
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -34,6 +37,7 @@ import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.data.DocumentDAO
 import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.DocumentTagRelation
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -41,7 +45,8 @@ import kotlin.math.roundToInt
 
 class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     private val docDAO: DocumentDAO = AppDatabase.getDb(app.baseContext).documentDao()
-    val documents: LiveData<List<Document>> = docDAO.findAllDocumentsSync()
+    val documentsWithTags: LiveData<List<DocumentDAO.DocumentWithTags>> =
+        docDAO.findAllDocumentsWithTagsSync()
 
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
@@ -78,17 +83,17 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun deleteSelection(){
-        viewModelScope.launch(Dispatchers.IO){
+    fun deleteSelection() {
+        viewModelScope.launch(Dispatchers.IO) {
             docDAO.deleteDocumentList(selectedDocuments)
-            launch(Dispatchers.Main){
+            launch(Dispatchers.Main) {
                 exitContextualMode()
             }
         }
     }
 
-    fun toggleWithSelection(document: Document){
-        if(!contextualMode){
+    fun toggleWithSelection(document: Document) {
+        if (!contextualMode) {
             contextualMode = true
         }
         if (selectedDocuments.removeIf { it.documentId == document.documentId }) {
@@ -100,16 +105,50 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun exitContextualMode(){
+    fun exitContextualMode() {
         contextualMode = false
         selectedDocuments.clear()
+    }
+
+    fun persistTag(name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            docDAO.persist(Tag(name = name))
+        }
+    }
+
+    fun updateTag(tag: Tag) {
+        viewModelScope.launch(Dispatchers.IO) {
+            docDAO.update(tag)
+        }
+    }
+
+    fun deleteTag(tag: Tag) {
+        viewModelScope.launch(Dispatchers.IO) {
+            docDAO.delete(tag)
+        }
+    }
+
+    fun createDocumentTagRelation(document: Document, tag: Tag){
+        if (document.documentId != null && tag.tagId != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                docDAO.persist(DocumentTagRelation(document.documentId!!, tag.tagId!!))
+            }
+        }
+    }
+
+    fun deleteDocumentTagRelation(document: Document, tag: Tag) {
+        if (document.documentId != null && tag.tagId != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                docDAO.delete(DocumentTagRelation(document.documentId!!, tag.tagId!!))
+            }
+        }
     }
 }
 
 @Composable
 fun DocumentsListScreen() {
     val vm: DocumentsListViewModel = viewModel()
-    val documents by vm.documents.observeAsState(initial = emptyList())
+    val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
     Scaffold(
         topBar =
         {
@@ -154,11 +193,11 @@ fun DocumentsListScreen() {
         },
         bottomBar = {
             BottomAppBar() {
-                Text(text = stringResource(id = R.string.number_of_documents) + ": " + documents.size)
+                Text(text = stringResource(id = R.string.number_of_documents) + ": " + documentsWithTags.size)
             }
         }
     ) { innerPadding ->
-        if (documents.isEmpty()) {
+        if (documentsWithTags.isEmpty()) {
             Text(
                 text = stringResource(id = R.string.no_documents_found),
                 style = MaterialTheme.typography.h6,
@@ -169,8 +208,14 @@ fun DocumentsListScreen() {
         } else {
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
-                items(items = documents, key = {it.documentId!!}) { document ->
-                    DocumentListItem(document = document, vm)
+                items(
+                    items = documentsWithTags,
+                    key = { it.document.documentId!! }) { documentWithTags ->
+                    DocumentListItem(
+                        document = documentWithTags.document,
+                        documentWithTags.tags,
+                        vm
+                    )
                     Divider(color = Color.Gray)
                 }
             }
@@ -179,15 +224,15 @@ fun DocumentsListScreen() {
 }
 
 @Composable
-fun AddDocumentButton(){
-    FloatingActionButton(onClick = { /*do something*/}) {
+fun AddDocumentButton() {
+    FloatingActionButton(onClick = { /*do something*/ }) {
         Icon(Icons.Default.Add, contentDescription = stringResource(id = R.string.create_document))
     }
 }
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun DocumentListItem(document: Document, viewModel: DocumentsListViewModel) {
+fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel) {
     val swipeableState = rememberSwipeableState(initialValue = 0)
     val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
     val anchors = mapOf(0f to 0, sizePx to 1)
@@ -222,6 +267,13 @@ fun DocumentListItem(document: Document, viewModel: DocumentsListViewModel) {
                     maxLines = 1,
                     overflow = TextOverflow.Clip
                 )
+            },
+            secondaryText = {
+                LazyRow(content = {
+                    items(items = tags, key = { it.tagId!! }) { tag ->
+                        tagButton(tag = tag, onClick = null)
+                    }
+                })
             },
             trailing = {
                 IconButton(
@@ -261,4 +313,21 @@ fun DocumentListItem(document: Document, viewModel: DocumentsListViewModel) {
             }
         }
     }
+}
+
+@Composable
+fun tagButton(tag: Tag, onClick: Function<R>?) {
+    Button(content = {
+        Text(
+            text = tag.name
+                ?: stringResource(
+                    id = R.string.unknown
+                ),
+            fontSize = 11.sp
+        )
+    }, onClick = { onClick },
+        shape = RoundedCornerShape(15.dp),
+        modifier = Modifier
+            .height(28.dp)
+    )
 }
