@@ -1,7 +1,6 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
-import android.service.autofill.OnClickAction
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -14,10 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
@@ -50,32 +46,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
-
-    fun createTestData() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val rrID: Long = docDAO.persist(Document(title = "Restaurant Receipt"))
-            val tfID: Long = docDAO.persist(Document(title = "Tax Forms"))
-            val kksfID: Long = docDAO.persist(Document(title = "The Krusty Krab Secret Formula"))
-            val fbiID: Long = docDAO.persist(Document(title = "FBI - Leaked Documents"))
-            val embID: Long = docDAO.persist(Document(title = "Embarrassing Purchase"))
-            val brthID: Long = docDAO.persist(Document(title = "Birth certificate"))
-            val nonameID: Long = docDAO.persist(Document())
-
-            val fdID: Long = docDAO.persist(Tag(name = "Food & Drink"))
-            val finID: Long = docDAO.persist(Tag(name = "Finances"))
-            val perID: Long = docDAO.persist(Tag(name = "Personal Secret"))
-
-            docDAO.persist(rrID, fdID)
-            docDAO.persist(rrID, finID)
-            docDAO.persist(tfID, finID)
-            docDAO.persist(kksfID, fdID)
-            docDAO.persist(fbiID, perID)
-            docDAO.persist(embID, perID)
-            docDAO.persist(embID, finID)
-            docDAO.persist(brthID, perID)
-            docDAO.persist(nonameID, perID)
-        }
-    }
 
     fun deleteDocument(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -110,24 +80,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         selectedDocuments.clear()
     }
 
-    fun persistTag(name: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.persist(Tag(name = name))
-        }
-    }
-
-    fun updateTag(tag: Tag) {
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.update(tag)
-        }
-    }
-
-    fun deleteTag(tag: Tag) {
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.delete(tag)
-        }
-    }
-
     fun createDocumentTagRelation(document: Document, tag: Tag){
         if (document.documentId != null && tag.tagId != null) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -146,7 +98,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-fun DocumentsListScreen() {
+fun DocumentsListScreen(openTagManagement: () -> Unit) {
     val vm: DocumentsListViewModel = viewModel()
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
     Scaffold(
@@ -157,12 +109,12 @@ fun DocumentsListScreen() {
                 actions = {
                     IconButton(
                         onClick = {
-                            vm.createTestData()
+                            openTagManagement()
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Create,
-                            contentDescription = "Create Test Data"
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(id = R.string.manage_tags)
                         )
                     }
                     if (vm.contextualMode) {
@@ -176,6 +128,7 @@ fun DocumentsListScreen() {
                         }
                         IconButton(
                             onClick = {
+                                //todo: "Are you sure?" - popup
                                 vm.deleteSelection()
                             }
                         ) {

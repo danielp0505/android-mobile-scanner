@@ -12,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
+import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
 import de.thm.ap.mobile_scanner.ui.theme.MobilescannerTheme
 
 class MainActivity : ComponentActivity() {
@@ -27,7 +28,14 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NavHost(navController = navController, startDestination = "documentsList") {
                         composable("documentsList") { backStackEntry: NavBackStackEntry ->
-                            DocumentsListScreen()
+                            DocumentsListScreen(openTagManagement = {
+                                navController.navigate("tagManagement")
+                            })
+                        }
+                        composable("tagManagement") { backStackEntry: NavBackStackEntry ->
+                            TagManagementScreen(dismissTagManager = {
+                                navController.popBackStack()
+                            })
                         }
                     }
                 }

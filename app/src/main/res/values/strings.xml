@@ -8,4 +8,9 @@
     <string name="create_document">Dokument erstellen</string>
     <string name="number_of_documents">Anzahl Dokumente</string>
     <string name="unknown">Unbekannt</string>
+    <string name="manage_tags">Tags verwalten</string>
+    <string name="add_tag">Tag hinzufügen</string>
+    <string name="update_tag">Tag aktualisieren</string>
+    <string name="create_tag">Tag erstellen</string>
+    <string name="navigation_back">Zurück</string>
 </resources>

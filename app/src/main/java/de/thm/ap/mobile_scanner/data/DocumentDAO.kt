@@ -37,6 +37,9 @@ interface DocumentDAO {
   @Query("SELECT * from tag")
   fun findAllTags(): List<Tag>
 
+  @Query("SELECT * from tag")
+  fun findAllTagsSync(): LiveData<List<Tag>>
+
   @Insert(onConflict = OnConflictStrategy.IGNORE)
   suspend fun persist(tag: Tag): Long
 
@@ -87,5 +90,6 @@ interface DocumentDAO {
   @Transaction
   @Query("SELECT * FROM tag")
   suspend fun getTagsWithDocument(): List<TagWithDocuments>
+
 }
 
