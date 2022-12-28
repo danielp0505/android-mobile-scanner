@@ -42,11 +42,16 @@ import java.util.*
 class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
   val dao = AppDatabase.getDb(app).documentDao()
   val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
+  var documentName: String by mutableStateOf("")
+  val images: MutableList<Uri> = mutableStateListOf()
+  var selectedTags: MutableList<Tag> = mutableStateListOf()
 
-  fun saveDocument(documentName: String, tags: List<Tag>, images: List<Uri>) {
+
+  fun saveDocument() {
     viewModelScope.launch() {
+      val documentName = if (documentName.isNullOrEmpty()) null else documentName
       val documentId = dao.persist(Document(title = documentName))
-      tags.forEach { dao.persist(documentId, it.tagId!!) }
+      selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
       val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
       images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
     }
@@ -90,9 +95,7 @@ fun DocumentEditScreen(
 ) {
   val vm: DocumentEditScreenViewModel = viewModel()
   val tags by vm.tags.observeAsState()
-  var docName by remember { mutableStateOf("") }
-  val selectedTags = remember { mutableStateListOf<Tag>() }
-  val images = remember { mutableStateListOf<Uri>() }
+
   var tagsExpanded by remember { mutableStateOf(false) }
 
   Scaffold(
@@ -104,10 +107,10 @@ fun DocumentEditScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
       ) {
-        ImageArea(images)
+        ImageArea(vm.images)
         OutlinedTextField(
-          value = docName,
-          onValueChange = { docName = it },
+          value = vm.documentName,
+          onValueChange = { vm.documentName = it },
           singleLine = true,
           label = {
             Text(text = "Document Title")
@@ -119,7 +122,7 @@ fun DocumentEditScreen(
           OutlinedTextField(
             modifier = Modifier.clickable { tagsExpanded = true },
             enabled = false,
-            value = selectedTags.mapNotNull { it.name }.sorted().joinToString(),
+            value = vm.selectedTags.mapNotNull { it.name }.sorted().joinToString(),
             onValueChange = {},
             label = {
               Text(text = "Tags")
@@ -138,9 +141,10 @@ fun DocumentEditScreen(
             tags?.filter { it.name != null }?.forEach { tag ->
               DropDownItemMenuWithCheckbox(
                 modifier = Modifier.padding(padding),
-                selected = selectedTags.contains(tag),
+                selected = vm.selectedTags.contains(tag),
                 onClick = {
-                  selectedTags.apply { if (contains(tag)) remove(tag) else add(tag) }
+//                  vm.selectedTags = vm.selectedTags.also { if (it.contains(tag)) it.remove(tag) else it.add(tag) }
+                  vm.selectedTags.apply { if (contains(tag)) remove(tag) else add(tag) }
                 }) {
                 Text(text = tag.name!!)
               }
@@ -156,11 +160,7 @@ fun DocumentEditScreen(
 
       FloatingActionButton(
         onClick = {
-          vm.saveDocument(
-            images = images,
-            documentName = docName,
-            tags = selectedTags
-          )
+          vm.saveDocument()
           navController.navigateUp()
         },
       ) {
