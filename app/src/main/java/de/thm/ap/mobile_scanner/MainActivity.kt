@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                             })
                         }
                         composable("documentEditScreen") { backStackEntry: NavBackStackEntry ->
-                            DocumentEditScreen().DocumentEditScreen(navController = navController)
+                            DocumentEditScreen(navController = navController)
                         }
                     }
                 }
