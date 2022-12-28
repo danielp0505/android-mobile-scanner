@@ -1,5 +1,6 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -20,11 +22,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import de.thm.ap.mobile_scanner.R
+import de.thm.ap.mobile_scanner.data.AppDatabase
+import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.DocumentImageRelation
+import de.thm.ap.mobile_scanner.model.Tag
+import de.thm.ap.mobile_scanner.model.Image
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
+
+
+class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
+  val dao = AppDatabase.getDb(app).documentDao()
+  val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
+
+  fun saveDocument(documentName: String, tags: List<Tag>, images: List<Uri>) {
+    viewModelScope.launch() {
+      val documentId = dao.persist(Document(title = documentName))
+      tags.forEach { dao.persist(documentId, it.tagId!!) }
+      val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
+      images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
+    }
+  }
+}
 
 private fun takePicture(context: Context, uri: Uri) {
   Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
@@ -61,10 +88,11 @@ fun DropDownItemMenuWithCheckbox(
 fun DocumentEditScreen(
   navController: NavController,
 ) {
+  val vm: DocumentEditScreenViewModel = viewModel()
+  val tags by vm.tags.observeAsState()
   var docName by remember { mutableStateOf("") }
-  val docTags = remember { mutableStateListOf<String>() }
+  val selectedTags = remember { mutableStateListOf<Tag>() }
   val images = remember { mutableStateListOf<Uri>() }
-  val availableTags = arrayOf("Tag 1", "Tag 2", "Tag 3", "Tag 4")
   var tagsExpanded by remember { mutableStateOf(false) }
 
   Scaffold(
@@ -91,7 +119,7 @@ fun DocumentEditScreen(
           OutlinedTextField(
             modifier = Modifier.clickable { tagsExpanded = true },
             enabled = false,
-            value = docTags.sorted().joinToString(),
+            value = selectedTags.mapNotNull { it.name }.sorted().joinToString(),
             onValueChange = {},
             label = {
               Text(text = "Tags")
@@ -107,14 +135,14 @@ fun DocumentEditScreen(
 
           )
           DropdownMenu(expanded = tagsExpanded, onDismissRequest = { tagsExpanded = false }) {
-            availableTags.forEach { tag ->
+            tags?.filter { it.name != null }?.forEach { tag ->
               DropDownItemMenuWithCheckbox(
                 modifier = Modifier.padding(padding),
-                selected = docTags.contains(tag),
+                selected = selectedTags.contains(tag),
                 onClick = {
-                  docTags.apply { if (contains(tag)) remove(tag) else add(tag) }
+                  selectedTags.apply { if (contains(tag)) remove(tag) else add(tag) }
                 }) {
-                Text(text = tag)
+                Text(text = tag.name!!)
               }
             }
           }
@@ -128,6 +156,11 @@ fun DocumentEditScreen(
 
       FloatingActionButton(
         onClick = {
+          vm.saveDocument(
+            images = images,
+            documentName = docName,
+            tags = selectedTags
+          )
           navController.navigateUp()
         },
       ) {
