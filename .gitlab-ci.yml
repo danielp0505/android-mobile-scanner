@@ -65,6 +65,7 @@ before_script:
 # Basic android and gradle stuff
 # Check linting
 lintDebug:
+  timeout: 3 hours 30 minutes
   tags:
   - android
   interruptible: true
@@ -74,6 +75,7 @@ lintDebug:
 
 # Make Project
 assembleDebug:
+  timeout: 3 hours 30 minutes
   tags:
   - android
   interruptible: true
@@ -86,6 +88,7 @@ assembleDebug:
 
 # Run all tests, if any fails, interrupt the pipeline(fail it)
 debugTests:
+  timeout: 3 hours 30 minutes
   tags:
   - android
   interruptible: true
