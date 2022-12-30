@@ -5,12 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import de.thm.ap.mobile_scanner.data.*
-import de.thm.ap.mobile_scanner.model.Document
-import de.thm.ap.mobile_scanner.model.DocumentTagRelation
-import de.thm.ap.mobile_scanner.model.Tag
+import de.thm.ap.mobile_scanner.model.*
 
 @Database(
-  entities = [Document::class, Tag::class, DocumentTagRelation::class],
+  entities = [Document::class, Tag::class, Image::class, DocumentTagRelation::class, DocumentImageRelation::class],
   version = 1,
   exportSchema = false
 )

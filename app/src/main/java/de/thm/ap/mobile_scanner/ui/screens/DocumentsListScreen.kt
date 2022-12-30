@@ -98,7 +98,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-fun DocumentsListScreen(openTagManagement: () -> Unit) {
+fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit) {
     val vm: DocumentsListViewModel = viewModel()
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
     Scaffold(
@@ -142,7 +142,7 @@ fun DocumentsListScreen(openTagManagement: () -> Unit) {
             )
         },
         floatingActionButton = {
-            AddDocumentButton()
+            AddDocumentButton({addDocument()})
         },
         bottomBar = {
             BottomAppBar() {
@@ -177,8 +177,8 @@ fun DocumentsListScreen(openTagManagement: () -> Unit) {
 }
 
 @Composable
-fun AddDocumentButton() {
-    FloatingActionButton(onClick = { /*do something*/ }) {
+fun AddDocumentButton(onClick: () -> Unit) {
+    FloatingActionButton(onClick = {onClick()}) {
         Icon(Icons.Default.Add, contentDescription = stringResource(id = R.string.create_document))
     }
 }
