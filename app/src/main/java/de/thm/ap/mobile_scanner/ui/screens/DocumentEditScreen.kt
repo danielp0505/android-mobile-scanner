@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,42 +20,98 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NamedNavArgument
+import androidx.navigation.NavArgument
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
+import de.thm.ap.mobile_scanner.data.DocumentDAO
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.DocumentImageRelation
 import de.thm.ap.mobile_scanner.model.Tag
 import de.thm.ap.mobile_scanner.model.Image
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
 
 
-class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
+class DocumentEditScreenViewModel(app: Application, val initDocumentId: Long?) : AndroidViewModel(app) {
   val dao = AppDatabase.getDb(app).documentDao()
   val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
   var documentName: String by mutableStateOf("")
   val images: MutableList<Uri> = mutableStateListOf()
   var selectedTags: MutableList<Tag> = mutableStateListOf()
-
+  var isEditMode: Boolean = false
 
   fun saveDocument() {
-    viewModelScope.launch() {
-      val documentName = if (documentName.isNullOrEmpty()) null else documentName
-      val documentId = dao.persist(Document(title = documentName))
-      selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
-      val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
-      images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
+    val documentName = if (documentName.isNullOrEmpty()) null else documentName
+
+    if(isEditMode){
+      viewModelScope.launch{
+        dao.update(Document(documentId = initDocumentId, title = documentName))
+      }
+    } else {
+      viewModelScope.launch(Dispatchers.IO){
+        val documentId = dao.persist(Document(title = documentName))
+        selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
+        var imageIDs: List<Long> = emptyList()
+        imageIDs = images.map {dao.persist(Image(uri = it.toString()))} //List is correct in DB
+        //todo: Image relations do not get saved correctly starting here
+        imageIDs.forEach { dao.persist(DocumentImageRelation(documentId = documentId, imageId = it)) }
+      }
     }
+  }
+
+  companion object{
+    fun createEditDocumentFactory(initDocumentId: Long) = viewModelFactory{
+      initializer {
+        val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+        DocumentEditScreenViewModel(
+          app = app!!,
+          initDocumentId = initDocumentId
+        )
+      }
+    }
+
+    fun createNewDocumentFactory() = viewModelFactory {
+      initializer {
+        val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+        DocumentEditScreenViewModel(
+          app = app!!,
+          initDocumentId = null
+        )
+      }
+    }
+  }
+
+  init {
+      if(initDocumentId != null && initDocumentId != -1L){
+        isEditMode = true
+        viewModelScope.launch{
+          val documentWithTags: DocumentDAO.DocumentWithTags =
+            dao.getDocumentWithTags(initDocumentId)
+          documentName = documentWithTags.document.title?: ""
+          documentWithTags.tags.forEach { selectedTags.add(it) }
+          val documentWithImages: DocumentDAO.DocumentWithImages =
+            dao.getDocumentWithImages(initDocumentId)
+          documentWithImages.images.forEach{ it.uri?.let { uriString: String ->
+            images.add(uriString.toUri()) } }
+        }
+      }
   }
 }
 
@@ -91,7 +148,7 @@ fun DropDownItemMenuWithCheckbox(
 
 @Composable
 fun DocumentEditScreen(
-  navController: NavController,
+  navController: NavController
 ) {
   val vm: DocumentEditScreenViewModel = viewModel()
   val tags by vm.tags.observeAsState()
@@ -100,7 +157,9 @@ fun DocumentEditScreen(
 
   Scaffold(
     modifier = Modifier.fillMaxWidth(),
-    topBar = { TopAppBar(title = { Text("Create Document") }) },
+    topBar = { TopAppBar(title = { Text(text = stringResource(id =
+    if(vm.isEditMode) R.string.edit_document else R.string.create_document))
+    })},
     content = { padding ->
 
       Column(
@@ -113,7 +172,7 @@ fun DocumentEditScreen(
           onValueChange = { vm.documentName = it },
           singleLine = true,
           label = {
-            Text(text = "Document Title")
+            Text(text = stringResource(id = R.string.document_title))
           },
           modifier = Modifier
             .padding(padding)
@@ -131,7 +190,7 @@ fun DocumentEditScreen(
               IconButton(onClick = { tagsExpanded = true }) {
                 Icon(
                   imageVector = Icons.Default.ArrowDropDown,
-                  contentDescription = "Select Tags"
+                  contentDescription = stringResource(id = R.string.select_tags)
                 )
               }
             }
@@ -166,7 +225,8 @@ fun DocumentEditScreen(
       ) {
         Icon(
           imageVector = Icons.Default.Check,
-          contentDescription = "Save Document"
+          contentDescription = stringResource(id =
+          if (vm.isEditMode) R.string.save_document else R.string.update_document)
         )
       }
     }

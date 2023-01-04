@@ -1,6 +1,7 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
+import android.view.View
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -29,6 +30,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.Navigation.findNavController
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.data.DocumentDAO
@@ -98,7 +100,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit) {
+fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit, navigateToDocument: (Long) -> Unit) {
     val vm: DocumentsListViewModel = viewModel()
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
     Scaffold(
@@ -142,7 +144,7 @@ fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit) 
             )
         },
         floatingActionButton = {
-            AddDocumentButton({addDocument()})
+            AddDocumentButton { addDocument() }
         },
         bottomBar = {
             BottomAppBar() {
@@ -167,7 +169,8 @@ fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit) 
                     DocumentListItem(
                         document = documentWithTags.document,
                         documentWithTags.tags,
-                        vm
+                        vm,
+                        navigateToDocument
                     )
                     Divider(color = Color.Gray)
                 }
@@ -185,7 +188,7 @@ fun AddDocumentButton(onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel) {
+fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel, onClick: (Long) -> Unit) {
     val swipeableState = rememberSwipeableState(initialValue = 0)
     val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
     val anchors = mapOf(0f to 0, sizePx to 1)
@@ -207,6 +210,10 @@ fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsLi
                         onPress = {
                             if (viewModel.contextualMode) {
                                 viewModel.toggleWithSelection(document)
+                            } else {
+                                document.documentId?.let { id ->
+                                    onClick(id)
+                                }
                             }
                         }
                     )
