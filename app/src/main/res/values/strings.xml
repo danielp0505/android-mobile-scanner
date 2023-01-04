@@ -5,7 +5,10 @@
     <string name="unnamed_document">Unbenanntes Dokument</string>
     <string name="delete_documents">Dokumente löschen</string>
     <string name="delete">Löschen</string>
+    <string name="save">Speichern</string>
+    <string name="update">Aktualisieren</string>
     <string name="create_document">Dokument erstellen</string>
+    <string name="edit_document">Dokument bearbeiten</string>
     <string name="number_of_documents">Anzahl Dokumente</string>
     <string name="unknown">Unbekannt</string>
     <string name="manage_tags">Tags verwalten</string>
@@ -13,4 +16,8 @@
     <string name="update_tag">Tag aktualisieren</string>
     <string name="create_tag">Tag erstellen</string>
     <string name="navigation_back">Zurück</string>
+    <string name="document_title">Titel des Dokument</string>
+    <string name="select_tags">Tags auswählen</string>
+    <string name="save_document">Dokument speichern</string>
+    <string name="update_document">Dokument aktualiseren</string>
 </resources>

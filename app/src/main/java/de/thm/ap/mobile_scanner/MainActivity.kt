@@ -1,20 +1,26 @@
 package de.thm.ap.mobile_scanner
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
 import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
+import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreenViewModel
 import de.thm.ap.mobile_scanner.ui.theme.MobilescannerTheme
+import java.util.function.IntToLongFunction
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,7 +39,10 @@ class MainActivity : ComponentActivity() {
                                 openTagManagement = {
                                     navController.navigate("tagManagement")
                                 },
-                                addDocument = {navController.navigate("documentEditScreen")}
+                                addDocument = {navController.navigate("documentEditScreen")},
+                                navigateToDocument = {
+                                    navController.navigate("documentEditScreen?documentID=${it}")
+                                }
                             )
                         }
                         composable("tagManagement") { backStackEntry: NavBackStackEntry ->
@@ -41,8 +50,21 @@ class MainActivity : ComponentActivity() {
                                 navController.popBackStack()
                             })
                         }
-                        composable("documentEditScreen") { backStackEntry: NavBackStackEntry ->
-                            DocumentEditScreen(navController = navController)
+                        composable("documentEditScreen?documentID={documentID}", arguments = listOf(navArgument("documentID"){
+                            defaultValue = -1
+                            type = NavType.LongType
+                        })) { backStackEntry: NavBackStackEntry ->
+                            val documentID: Long =
+                                backStackEntry.arguments?.getLong("documentID") ?: -1
+                            if (documentID == -1L){
+                                val factory = DocumentEditScreenViewModel.createNewDocumentFactory()
+                                viewModel<DocumentEditScreenViewModel>(factory = factory)
+                            } else {
+                                val factory = DocumentEditScreenViewModel.createEditDocumentFactory(documentID)
+                                viewModel<DocumentEditScreenViewModel>(factory = factory)
+                            }
+                            DocumentEditScreen(
+                                navController = navController)
                         }
                     }
                 }
