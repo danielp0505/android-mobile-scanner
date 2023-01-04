@@ -65,8 +65,8 @@ class DocumentEditScreenViewModel(app: Application, val initDocumentId: Long?) :
       viewModelScope.launch(Dispatchers.IO){
         val documentId = dao.persist(Document(title = documentName))
         selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
-        val imageIDs: List<Long> = images.map {dao.persist(Image(uri = it.toString()))} //List is correct in DB
-        //todo: Image relations do not get saved correctly starting here
+        val imageIDs: List<Long> = images.map {dao.persist(Image(uri = it.toString()))}
+        //todo: Image relations do not get saved correctly here
         imageIDs.forEach { dao.persist(DocumentImageRelation(documentId = documentId, imageId = it)) }
       }
     }
