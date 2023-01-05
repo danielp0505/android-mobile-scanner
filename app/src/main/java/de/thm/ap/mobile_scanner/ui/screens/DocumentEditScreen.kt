@@ -1,10 +1,15 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import androidx.annotation.CallSuper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -58,18 +63,27 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
   }
 }
 
-private fun takePicture(context: Context, uri: Uri) {
-  Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-    addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-    putExtra(
-      MediaStore.EXTRA_OUTPUT,
-      uri
-    )
-  }.also {
-    context.startActivity(it)
+open class TakePicture : ActivityResultContract<Uri, Uri?>() {
+  var uri: Uri? = null
+
+  @CallSuper
+  override fun createIntent(context: Context, input: Uri): Intent {
+    uri = input
+    return Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+      .putExtra(MediaStore.EXTRA_OUTPUT, input)
   }
 
+  final override fun getSynchronousResult(
+    context: Context,
+    input: Uri
+  ): SynchronousResult<Uri?>? = null
+
+  @Suppress("AutoBoxing")
+  final override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
+    return if (resultCode == Activity.RESULT_OK) uri else null
+  }
 }
+
 
 @Composable
 fun DropDownItemMenuWithCheckbox(
@@ -183,6 +197,13 @@ private fun ImageArea(
   val context = LocalContext.current
   val uuid by remember { mutableStateOf(UUID.randomUUID()) }
   val baseDir = File(context.filesDir, uuid.toString())
+  val vm: DocumentEditScreenViewModel = viewModel()
+  val getImageFromGalleryLauncher = rememberLauncherForActivityResult(contract = GetContent()) {
+    if (it != null) images.add(it)
+  }
+  val getImageFromCameraLauncher = rememberLauncherForActivityResult(contract = TakePicture()) {
+    if (it != null) images.add(it)
+  }
   baseDir.mkdirs()
   Box(
     modifier = modifier
@@ -190,7 +211,7 @@ private fun ImageArea(
       .fillMaxHeight(.3F)
   ) {
     LazyRow(modifier = Modifier.padding(16.dp)) {
-      items(images.filter { uri -> File(baseDir, uri.lastPathSegment).exists()}) { uri ->
+      items(images) { uri ->
         AsyncImage(
           modifier = Modifier.padding(16.dp),
           model = uri,
@@ -200,13 +221,23 @@ private fun ImageArea(
     }
     FloatingActionButton(
       modifier = Modifier
+        .align(Alignment.BottomStart)
+        .padding(16.dp),
+      onClick = { getImageFromGalleryLauncher.launch("image/*") },
+    ) {
+      Icon(
+        imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
+        contentDescription = "Add Picture",
+      )
+    }
+    FloatingActionButton(
+      modifier = Modifier
         .align(Alignment.BottomEnd)
         .padding(16.dp),
       onClick = {
         val file = File(baseDir, "${images.size}.jpg")
         val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
-        takePicture(context, uri)
-        images.add(uri)
+        getImageFromCameraLauncher.launch(uri)
       },
     ) {
       Icon(
@@ -216,8 +247,4 @@ private fun ImageArea(
     }
   }
 }
-
-
-
-
 
