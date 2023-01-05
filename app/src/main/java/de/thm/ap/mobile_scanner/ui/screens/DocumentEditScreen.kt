@@ -22,6 +22,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
@@ -102,6 +105,7 @@ fun DropDownItemMenuWithCheckbox(
   }
 
 }
+
 
 @Composable
 fun DocumentEditScreen(
@@ -219,31 +223,36 @@ private fun ImageArea(
         )
       }
     }
-    FloatingActionButton(
+    Column(
       modifier = Modifier
-        .align(Alignment.BottomStart)
-        .padding(16.dp),
-      onClick = { getImageFromGalleryLauncher.launch("image/*") },
-    ) {
-      Icon(
-        imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
-        contentDescription = "Add Picture",
-      )
-    }
-    FloatingActionButton(
-      modifier = Modifier
+        .padding(16.dp)
         .align(Alignment.BottomEnd)
-        .padding(16.dp),
-      onClick = {
-        val file = File(baseDir, "${images.size}.jpg")
-        val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
-        getImageFromCameraLauncher.launch(uri)
-      },
     ) {
-      Icon(
-        imageVector = ImageVector.vectorResource(R.drawable.add_a_photo),
-        contentDescription = "Add Picture",
-      )
+
+      FloatingActionButton(
+        modifier = Modifier
+          .scale(0.8f)
+          .alpha(0.8f),
+        elevation = FloatingActionButtonDefaults.elevation(),
+        onClick = { getImageFromGalleryLauncher.launch("image/*") },
+      ) {
+        Icon(
+          imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
+          contentDescription = "Add Picture",
+        )
+      }
+      FloatingActionButton(
+        onClick = {
+          val file = File(baseDir, "${images.size}.jpg")
+          val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
+          getImageFromCameraLauncher.launch(uri)
+        },
+      ) {
+        Icon(
+          imageVector = ImageVector.vectorResource(R.drawable.add_a_photo),
+          contentDescription = "Add Picture",
+        )
+      }
     }
   }
 }
