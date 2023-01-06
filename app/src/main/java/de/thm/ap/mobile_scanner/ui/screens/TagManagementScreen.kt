@@ -15,6 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -91,17 +93,27 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
+           // var tag by remember { mutableStateOf("") }
             TextField(value = vm.tagName, onValueChange = { vm.tagName = it })
             Button(onClick = {
-                if (vm.isEditMode) {
-                    vm.updateTag(Tag(vm.selectedTag.tagId, vm.tagName))
-                } else {
-                    vm.persistTag(vm.tagName)
+                //wenn Eingabe leer soll kein Tag erstellt werden
+                if(vm.tagName!="") {
+                    if (vm.isEditMode) {
+                        vm.updateTag(Tag(vm.selectedTag.tagId, vm.tagName))
+
+                    } else {
+                        vm.persistTag(vm.tagName)
+                    }
+                    //nach erstellen von Tag wird Eingabefeld wieder geleert
+                    vm.tagName = ""
+
                 }
             }) {
                 Text(text = stringResource(id = if (vm.isEditMode) R.string.update_tag else R.string.create_tag))
 
+
             }
+
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
                 items(
@@ -109,7 +121,9 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
                     key = { it.tagId!! }) { tag ->
                     TagListItem(tag = tag, selectedTag = vm.selectedTag, onSelection = {
                         selectedTag -> vm.toggleEditMode(selectedTag) },
-                        onDelete = {selectedTag -> vm.deleteTag(selectedTag)})
+                        onDelete = {selectedTag -> vm.deleteTag(selectedTag)
+                            //damit es nach dem Delete nicht im Edit Mode stecken bleibt
+                        vm.isEditMode=false})
                     Divider(modifier = Modifier.fillMaxWidth())
                 }
             }
