@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.*
@@ -35,6 +36,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
@@ -106,6 +108,20 @@ fun DropDownItemMenuWithCheckbox(
 
 }
 
+@Composable
+private fun MyTopAppBar(navigateUp: () -> Unit){
+  TopAppBar(
+    navigationIcon = {
+      IconButton(onClick = {navigateUp()}) {
+        Icon(
+          imageVector = Icons.Default.ArrowBack,
+          contentDescription = "Go back"
+        )
+      }
+    },
+    title = { Text(text = "")})
+
+}
 
 @Composable
 fun DocumentEditScreen(
@@ -118,7 +134,7 @@ fun DocumentEditScreen(
 
   Scaffold(
     modifier = Modifier.fillMaxWidth(),
-    topBar = { TopAppBar(title = { Text("Create Document") }) },
+    topBar = { MyTopAppBar(navigateUp = {navController.navigateUp()}) },
     content = { padding ->
 
       Column(
