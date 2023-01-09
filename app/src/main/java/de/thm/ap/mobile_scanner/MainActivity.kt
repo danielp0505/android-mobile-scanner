@@ -8,9 +8,11 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
 import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
@@ -34,7 +36,7 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("tagManagement")
                                 },
                                 addDocument = {navController.navigate("documentEditScreen")}
-                            )
+                            ) { documentId: Long -> navController.navigate("documentEditScreen/${documentId}") }
                         }
                         composable("tagManagement") { backStackEntry: NavBackStackEntry ->
                             TagManagementScreen(dismissTagManager = {
@@ -42,7 +44,14 @@ class MainActivity : ComponentActivity() {
                             })
                         }
                         composable("documentEditScreen") { backStackEntry: NavBackStackEntry ->
-                            DocumentEditScreen(navController = navController)
+                            DocumentEditScreen(navController = navController, null)
+                        }
+                        composable(
+                            "documentEditScreen/{documentId}",
+                            arguments = listOf(navArgument("documentId"){type = NavType.LongType})
+                        ) { backStackEntry: NavBackStackEntry ->
+                            val id = backStackEntry.arguments?.getLong("documentId")
+                            DocumentEditScreen(navController = navController, id)
                         }
                     }
                 }

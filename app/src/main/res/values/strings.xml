@@ -13,4 +13,5 @@
     <string name="update_tag">Tag aktualisieren</string>
     <string name="create_tag">Tag erstellen</string>
     <string name="navigation_back">Zurück</string>
+    <string name="edit">Bearbeiten</string>
 </resources>
