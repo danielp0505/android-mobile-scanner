@@ -6,11 +6,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.annotation.CallSuper
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -26,11 +28,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -48,6 +56,7 @@ import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
+import kotlin.math.roundToInt
 
 
 class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
@@ -237,83 +246,151 @@ fun DocumentEditScreen(
 }
 
 @Composable
+fun ImageBox(
+  uri: Uri,
+  contentDescription: String,
+  onRelease: (Float, Float) -> Unit,
+  onGloballyPositioned: (LayoutCoordinates) -> Unit
+) {
+  val vm: DocumentEditScreenViewModel = viewModel()
+  var offsetX by remember { mutableStateOf(0f) }
+  var offsetY by remember { mutableStateOf(0f) }
+  var isDraged by remember { mutableStateOf(false) }
+  Box(modifier = Modifier
+      .zIndex(if (isDraged) Float.MAX_VALUE else 0f)
+      .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+      .onGloballyPositioned {
+          onGloballyPositioned(it)
+      }
+
+  ) {
+    AsyncImage(
+      modifier = Modifier
+          .padding(16.dp)
+          .shadow(if (isDraged) 16.dp else 0.dp)
+          .scale(if (isDraged) .95f else 1f)
+          .alpha(if (isDraged) .7f else 1f)
+          .pointerInput(Unit) {
+              detectDragGesturesAfterLongPress(onDragStart = { _ ->
+                  isDraged = true
+              }, onDrag = { change, dragAmount ->
+                  change.consume()
+                  offsetX += dragAmount.x
+                  offsetY += dragAmount.y
+              }, onDragEnd = {
+                  isDraged = false
+                  onRelease(offsetX, offsetY)
+                  offsetX = 0f
+                  offsetY = 0f
+              })
+          },
+      model = uri,
+      contentDescription = contentDescription,
+    )
+    if (!isDraged) {
+      IconButton(
+        onClick = { vm.images.remove(uri) }, modifier = Modifier
+              .size(32.dp)
+              .align(Alignment.TopEnd)
+      ) {
+        Icon(
+          Icons.Default.Delete, "Delete Image"
+        )
+      }
+    }
+  }
+}
+
+fun calcStepsToMove(index: Int, offset: Float, widths: List<Int>): Int {
+  var stepsToMove = 0
+  var remainingOffset = offset
+  for (i in 0..widths.lastIndex) {
+    when {
+      //steps forward
+      offset > 0 && i in index..widths.lastIndex -> {
+        remainingOffset = remainingOffset - widths[i]
+        if (remainingOffset > 0) {
+          stepsToMove++
+        }
+      }
+      //steps backward
+      offset < 0 && i in 0..index -> {
+        remainingOffset = remainingOffset + widths[i]
+        if (remainingOffset < 0) {
+          stepsToMove--
+        }
+      }
+    }
+  }
+  return stepsToMove
+}
+
+@Composable
 private fun ImageArea(
     images: MutableList<Uri>,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val uuid by remember { mutableStateOf(UUID.randomUUID()) }
-    val baseDir = File(context.filesDir, uuid.toString())
-    val vm: DocumentEditScreenViewModel = viewModel()
-    val getImageFromGalleryLauncher = rememberLauncherForActivityResult(contract = GetContent()) {
-        if (it != null) images.add(it)
-    }
-    val getImageFromCameraLauncher = rememberLauncherForActivityResult(contract = TakePicture()) {
-        if (it != null) images.add(it)
-    }
-    baseDir.mkdirs()
-    Box(
-        modifier = modifier
-            .fillMaxWidth(1F)
-            .fillMaxHeight(.3F)
-    ) {
-        LazyRow(modifier = Modifier.padding(16.dp)) {
-            itemsIndexed(images) { index, uri ->
-                Box() {
-                    AsyncImage(
-                        modifier = Modifier.padding(16.dp),
-                        model = uri,
-                        contentDescription = stringResource(id = R.string.page) + " ${
-                            images.indexOf(
-                                uri
-                            )
-                        }",
-                    )
-                    IconButton(
-                        onClick = { vm.images.remove(uri) },
-                        modifier = Modifier
-                            .size(32.dp)
-                            .align(Alignment.TopEnd)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            stringResource(id = R.string.delete_image)
-                        )
-                    }
-                }
-            }
-        }
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .align(Alignment.BottomEnd)
-        ) {
+  val context = LocalContext.current
+  val uuid by remember { mutableStateOf(UUID.randomUUID()) }
+  val baseDir = File(context.filesDir, uuid.toString())
+  var imagePositions = remember{arrayOfNulls<LayoutCoordinates>(100) }
+  val vm: DocumentEditScreenViewModel = viewModel()
+  val getImageFromGalleryLauncher = rememberLauncherForActivityResult(contract = GetContent()) {
+    if (it != null) images.add(it)
+  }
+  val getImageFromCameraLauncher = rememberLauncherForActivityResult(contract = TakePicture()) {
+    if (it != null) images.add(it)
+  }
+  baseDir.mkdirs()
+  Box(
+    modifier = modifier
+        .fillMaxWidth(1F)
+        .fillMaxHeight(.3F)
+  ) {
+      LazyRow(modifier = Modifier.padding(16.dp)) {
+          itemsIndexed(images) { index, uri ->
+              ImageBox(uri, "Page Nr. ${index}", onRelease = { x, y ->
+                  val stepsToMoove = calcStepsToMove(index,
+                      x,
+                      imagePositions.slice(0..images.lastIndex)
+                          .map { it?.size?.width ?: Int.MAX_VALUE })
+                  val uri = images[index]
+                  images.removeAt(index)
+                  images.add(index + stepsToMoove, uri)
+              }, onGloballyPositioned = { imagePositions[index] = it })
+          }
+      }
+      Column(
+          modifier = Modifier
+              .padding(16.dp)
+              .align(Alignment.BottomEnd)
+      ) {
 
-            FloatingActionButton(
-                modifier = Modifier
-                    .scale(0.8f)
-                    .alpha(0.8f),
-                elevation = FloatingActionButtonDefaults.elevation(),
-                onClick = { getImageFromGalleryLauncher.launch("image/*") },
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
-                    contentDescription = stringResource(id = R.string.add_image),
-                )
-            }
-            FloatingActionButton(
-                onClick = {
-                    val file = File(baseDir, "${images.size}.jpg")
-                    val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
-                    getImageFromCameraLauncher.launch(uri)
-                },
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.add_a_photo),
-                    contentDescription = stringResource(id = R.string.take_photo),
-                )
-            }
-        }
+          FloatingActionButton(
+              modifier = Modifier
+                  .scale(0.8f)
+                  .alpha(0.8f),
+              elevation = FloatingActionButtonDefaults.elevation(),
+              onClick = { getImageFromGalleryLauncher.launch("image/*") },
+          ) {
+              Icon(
+                  imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
+                  contentDescription = stringResource(id = R.string.add_image),
+              )
+          }
+          FloatingActionButton(
+              onClick = {
+                  val file = File(baseDir, "${images.size}.jpg")
+                  val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
+                  getImageFromCameraLauncher.launch(uri)
+              },
+          ) {
+              Icon(
+                  imageVector = ImageVector.vectorResource(R.drawable.add_a_photo),
+                  contentDescription = stringResource(id = R.string.take_photo),
+              )
+          }
+      }
     }
 }
 
