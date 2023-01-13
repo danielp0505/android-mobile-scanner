@@ -44,6 +44,7 @@ class TagManagementViewModel(app: Application) : AndroidViewModel(app) {
     var selectedTag: Tag by mutableStateOf(Tag())
     var showTagDeleteDialog by mutableStateOf(false)
 
+
     fun toggleEditMode(tag: Tag) {
         if (isEditMode && tag == selectedTag) {
             selectedTag = Tag()
@@ -149,6 +150,8 @@ fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onD
     val vm: TagManagementViewModel = viewModel()
     val elementPadding = 12.dp
     val rowBaseModifier = Modifier.fillMaxWidth()
+
+
     Row(horizontalArrangement = Arrangement.SpaceBetween,
         modifier = if (tag.tagId == selectedTag.tagId) rowBaseModifier.background(Color.Gray) else rowBaseModifier) {
         Button(onClick = { onSelection(tag) },
@@ -156,11 +159,15 @@ fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onD
                 .padding(elementPadding)
                 .fillMaxWidth(0.8f)) {
             Text(text = tag.name ?: stringResource(id = R.string.unknown))
-        }
 
+
+        }
+        if(vm.isEditMode){
         IconButton(onClick = { vm.showTagDeleteDialog=true }, modifier = Modifier.padding(elementPadding)) {
             Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(id = R.string.delete) )
         }
+    }
+
     }
 
     //Der Dialog beim drücken auf den Delete Knopf
@@ -169,7 +176,7 @@ fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onD
             onDismissRequest = {vm.showTagDeleteDialog=false},
 
             title = {
-                Text(text = "Tag-Lösch Dialog")
+                Text(text = "Löschen")
             },
             text = {
                 Text(
@@ -179,8 +186,9 @@ fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onD
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onDelete(tag)
+                        onDelete(selectedTag)
                         vm.showTagDeleteDialog=false
+
 
                     }
                 ) {
