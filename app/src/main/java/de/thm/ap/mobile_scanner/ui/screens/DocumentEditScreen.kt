@@ -25,9 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -144,7 +144,7 @@ fun DocumentEditScreen(
 
   Scaffold(
     modifier = Modifier.fillMaxWidth(),
-    topBar = { TopAppBar(title = { Text("Create Document") }) },
+    topBar = { TopAppBar(title = { Text(text = stringResource(id = if(vm.isEditMode()) R.string.edit_document else R.string.create_document)) }) },
     content = { padding ->
 
       Column(
@@ -159,7 +159,7 @@ fun DocumentEditScreen(
           onValueChange = { vm.document = vm.document.copy(title = it)},
           singleLine = true,
           label = {
-            Text(text = "Document Title")
+            Text(text = stringResource(id = R.string.document_title))
           },
         )
         Box {
@@ -169,13 +169,13 @@ fun DocumentEditScreen(
             value = vm.selectedTags.mapNotNull { it.name }.sorted().joinToString(),
             onValueChange = {},
             label = {
-              Text(text = "Tags")
+              Text(text = stringResource(id = R.string.tags))
             },
             trailingIcon = {
               IconButton(onClick = { tagsExpanded = true }) {
                 Icon(
                   imageVector = Icons.Default.ArrowDropDown,
-                  contentDescription = "Select Tags"
+                  contentDescription = stringResource(id = R.string.select_tags)
                 )
               }
             }
@@ -210,7 +210,7 @@ fun DocumentEditScreen(
       ) {
         Icon(
           imageVector = Icons.Default.Check,
-          contentDescription = "Save Document"
+          contentDescription = stringResource(id = R.string.save)
         )
       }
     }
@@ -246,15 +246,17 @@ private fun ImageArea(
           AsyncImage(
             modifier = Modifier.padding(16.dp),
             model = uri,
-            contentDescription = "Page ${images.indexOf(uri)}",
+            contentDescription = stringResource(id = R.string.page) + " ${images.indexOf(uri)}",
           )
           IconButton(
             onClick = {vm.images.remove(uri)},
-            modifier = Modifier.size(32.dp).align(Alignment.TopEnd)
+            modifier = Modifier
+              .size(32.dp)
+              .align(Alignment.TopEnd)
           ) {
             Icon(
               Icons.Default.Delete,
-              "Delete Image"
+              stringResource(id = R.string.delete_image)
             )
           }
         }
@@ -275,7 +277,7 @@ private fun ImageArea(
       ) {
         Icon(
           imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
-          contentDescription = "Add Picture",
+          contentDescription = stringResource(id = R.string.add_image),
         )
       }
       FloatingActionButton(
@@ -287,7 +289,7 @@ private fun ImageArea(
       ) {
         Icon(
           imageVector = ImageVector.vectorResource(R.drawable.add_a_photo),
-          contentDescription = "Add Picture",
+          contentDescription = stringResource(id = R.string.take_photo),
         )
       }
     }
