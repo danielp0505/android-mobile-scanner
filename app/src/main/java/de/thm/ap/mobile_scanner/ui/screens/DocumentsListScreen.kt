@@ -98,7 +98,11 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit) {
+fun DocumentsListScreen(
+    openTagManagement: () -> Unit,
+    addDocument: () -> Unit,
+    editDocument: (Long) -> Unit
+) {
     val vm: DocumentsListViewModel = viewModel()
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
     Scaffold(
@@ -163,11 +167,13 @@ fun DocumentsListScreen(openTagManagement: () -> Unit, addDocument: () -> Unit) 
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
                 items(
                     items = documentsWithTags,
-                    key = { it.document.documentId!! }) { documentWithTags ->
+                    key = { it.document.documentId!! }
+                ) { documentWithTags ->
                     DocumentListItem(
                         document = documentWithTags.document,
-                        documentWithTags.tags,
-                        vm
+                        tags = documentWithTags.tags,
+                        viewModel = vm,
+                        editDocument = {editDocument(documentWithTags.document.documentId!!)}
                     )
                     Divider(color = Color.Gray)
                 }
@@ -185,7 +191,7 @@ fun AddDocumentButton(onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel) {
+fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel, editDocument: () -> Unit) {
     val swipeableState = rememberSwipeableState(initialValue = 0)
     val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
     val anchors = mapOf(0f to 0, sizePx to 1)
@@ -229,18 +235,26 @@ fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsLi
                 })
             },
             trailing = {
-                IconButton(
-                    onClick = {
-                        viewModel.deleteDocument(document)
-                        coroutineScope.launch(Dispatchers.Main) {
-                            swipeableState.snapTo(0)
-                        }
-                    },
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(id = R.string.delete)
-                    )
+                Row() {
+                    IconButton(
+                        onClick = {
+                            viewModel.deleteDocument(document)
+                            coroutineScope.launch(Dispatchers.Main) {
+                                swipeableState.snapTo(0)
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(id = R.string.delete)
+                        )
+                    }
+                   IconButton(onClick = {editDocument()}) {
+                       Icon(
+                           imageVector = Icons.Default.Edit,
+                           contentDescription = stringResource(id = R.string.edit)
+                       )
+                   } 
                 }
             }
         )

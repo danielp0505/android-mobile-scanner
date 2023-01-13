@@ -13,24 +13,26 @@ import androidx.annotation.CallSuper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -51,19 +53,41 @@ import java.util.*
 
 class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
   val dao = AppDatabase.getDb(app).documentDao()
+  var document: Document by mutableStateOf(Document())
+  fun isEditMode() = document.documentId!=null
   val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
-  var documentName: String by mutableStateOf("")
-  val images: MutableList<Uri> = mutableStateListOf()
+  var images = mutableStateListOf<Uri>()
   var selectedTags: MutableList<Tag> = mutableStateListOf()
 
+  fun initDocument(documentId: Long?){
+    if (documentId == null) return
+    viewModelScope.launch {
+      document = dao.findDocumentById(documentId)
+      images = dao.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }.toMutableStateList()
+    }
+  }
 
   fun saveDocument() {
-    viewModelScope.launch() {
-      val documentName = if (documentName.isNullOrEmpty()) null else documentName
-      val documentId = dao.persist(Document(title = documentName))
-      selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
-      val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
-      images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
+    if (isEditMode()){
+      viewModelScope.launch {
+        dao.update(document)
+        selectedTags.forEach { dao.persist(document.documentId!!, it.tagId!!) }
+
+        //delete all images assosiated with this document and recreate them.
+        dao.getDocumentWithImages(document.documentId!!).images.forEach {
+          dao.delete(it)
+          dao.delete(DocumentImageRelation(document.documentId!!, it.imageId!!))
+        }
+        val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
+        images_ids.forEach { dao.persist(DocumentImageRelation(document.documentId!!, it)) }
+      }
+    }else {
+      viewModelScope.launch {
+        val documentId = dao.persist(document)
+        selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
+        val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
+        images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
+      }
     }
   }
 }
@@ -125,32 +149,34 @@ private fun MyTopAppBar(navigateUp: () -> Unit){
 
 @Composable
 fun DocumentEditScreen(
-  navController: NavController,
+    navController: NavController,
+    documentId: Long?,
 ) {
   val vm: DocumentEditScreenViewModel = viewModel()
+  vm.initDocument(documentId)
   val tags by vm.tags.observeAsState()
 
   var tagsExpanded by remember { mutableStateOf(false) }
 
   Scaffold(
     modifier = Modifier.fillMaxWidth(),
-    topBar = { MyTopAppBar(navigateUp = {navController.navigateUp()}) },
+    topBar = { MyTopAppBar(navigateUp = {navController.navigateUp()} , title = { Text(text = stringResource(id = if(vm.isEditMode()) R.string.edit_document else R.string.create_document)) }) },
     content = { padding ->
 
       Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(padding)
       ) {
         ImageArea(vm.images)
         OutlinedTextField(
-          value = vm.documentName,
-          onValueChange = { vm.documentName = it },
+          value = vm.document.title ?: "",
+          onValueChange = { vm.document = vm.document.copy(title = it)},
           singleLine = true,
           label = {
-            Text(text = "Document Title")
+            Text(text = stringResource(id = R.string.document_title))
           },
-          modifier = Modifier
-            .padding(padding)
         )
         Box {
           OutlinedTextField(
@@ -159,13 +185,13 @@ fun DocumentEditScreen(
             value = vm.selectedTags.mapNotNull { it.name }.sorted().joinToString(),
             onValueChange = {},
             label = {
-              Text(text = "Tags")
+              Text(text = stringResource(id = R.string.tags))
             },
             trailingIcon = {
               IconButton(onClick = { tagsExpanded = true }) {
                 Icon(
                   imageVector = Icons.Default.ArrowDropDown,
-                  contentDescription = "Select Tags"
+                  contentDescription = stringResource(id = R.string.select_tags)
                 )
               }
             }
@@ -200,7 +226,7 @@ fun DocumentEditScreen(
       ) {
         Icon(
           imageVector = Icons.Default.Check,
-          contentDescription = "Save Document"
+          contentDescription = stringResource(id = R.string.save)
         )
       }
     }
@@ -231,12 +257,25 @@ private fun ImageArea(
       .fillMaxHeight(.3F)
   ) {
     LazyRow(modifier = Modifier.padding(16.dp)) {
-      items(images) { uri ->
-        AsyncImage(
-          modifier = Modifier.padding(16.dp),
-          model = uri,
-          contentDescription = "Page ${images.indexOf(uri)}",
-        )
+      itemsIndexed(images) { index, uri ->
+        Box() {
+          AsyncImage(
+            modifier = Modifier.padding(16.dp),
+            model = uri,
+            contentDescription = stringResource(id = R.string.page) + " ${images.indexOf(uri)}",
+          )
+          IconButton(
+            onClick = {vm.images.remove(uri)},
+            modifier = Modifier
+              .size(32.dp)
+              .align(Alignment.TopEnd)
+          ) {
+            Icon(
+              Icons.Default.Delete,
+              stringResource(id = R.string.delete_image)
+            )
+          }
+        }
       }
     }
     Column(
@@ -254,7 +293,7 @@ private fun ImageArea(
       ) {
         Icon(
           imageVector = ImageVector.vectorResource(R.drawable.add_photo_alternate),
-          contentDescription = "Add Picture",
+          contentDescription = stringResource(id = R.string.add_image),
         )
       }
       FloatingActionButton(
@@ -266,7 +305,7 @@ private fun ImageArea(
       ) {
         Icon(
           imageVector = ImageVector.vectorResource(R.drawable.add_a_photo),
-          contentDescription = "Add Picture",
+          contentDescription = stringResource(id = R.string.take_photo),
         )
       }
     }

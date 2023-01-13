@@ -18,7 +18,7 @@ interface DocumentDAO {
   fun findAllDocumentsWithTagsSync(): LiveData<List<DocumentWithTags>>
 
   @Query("SELECT * from document WHERE documentId = :documentId")
-  fun findDocumentById(documentId: Long): Document
+  suspend fun findDocumentById(documentId: Long): Document
 
   @Update(onConflict = OnConflictStrategy.REPLACE)
   suspend fun update(document: Document): Int
@@ -65,8 +65,14 @@ interface DocumentDAO {
   @Insert(onConflict = OnConflictStrategy.IGNORE)
   suspend fun persist(image: Image): Long
 
+  @Delete
+  suspend fun delete(image: Image)
+
   @Insert(onConflict = OnConflictStrategy.IGNORE)
   suspend fun persist(documentImageRelation: DocumentImageRelation)
+
+  @Delete
+  suspend fun delete(documentImageRelation: DocumentImageRelation)
 
 
   data class TagWithDocuments(
