@@ -162,6 +162,8 @@ fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onD
             Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(id = R.string.delete) )
         }
     }
+
+    //Der Dialog beim drücken auf den Delete Knopf
     if(vm.showTagDeleteDialog){
         AlertDialog(
             onDismissRequest = {vm.showTagDeleteDialog=false},
