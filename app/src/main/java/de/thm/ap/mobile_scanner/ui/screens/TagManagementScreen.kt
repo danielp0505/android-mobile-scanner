@@ -32,6 +32,7 @@ import de.thm.ap.mobile_scanner.data.DocumentDAO
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.app.AlertDialog
 import kotlinx.coroutines.selects.select
 
 class TagManagementViewModel(app: Application) : AndroidViewModel(app) {
@@ -41,6 +42,7 @@ class TagManagementViewModel(app: Application) : AndroidViewModel(app) {
     val tags: LiveData<List<Tag>> = docDAO.findAllTagsSync()
     var tagName: String by mutableStateOf(String())
     var selectedTag: Tag by mutableStateOf(Tag())
+    var showTagDeleteDialog by mutableStateOf(false)
 
     fun toggleEditMode(tag: Tag) {
         if (isEditMode && tag == selectedTag) {
@@ -65,10 +67,17 @@ class TagManagementViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+
+
+
+
     fun deleteTag(tag: Tag) {
         viewModelScope.launch(Dispatchers.IO) {
             docDAO.delete(tag)
-        }
+    }
+
+
     }
 }
 
@@ -89,7 +98,9 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
         }
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
@@ -131,18 +142,59 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
     }
 }
 
+
+
 @Composable
 fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onDelete: (tag: Tag) -> Unit){
+    val vm: TagManagementViewModel = viewModel()
     val elementPadding = 12.dp
     val rowBaseModifier = Modifier.fillMaxWidth()
     Row(horizontalArrangement = Arrangement.SpaceBetween,
         modifier = if (tag.tagId == selectedTag.tagId) rowBaseModifier.background(Color.Gray) else rowBaseModifier) {
-        Button(onClick = { onSelection(tag) }, Modifier.padding(elementPadding).fillMaxWidth(0.8f)) {
+        Button(onClick = { onSelection(tag) },
+            Modifier
+                .padding(elementPadding)
+                .fillMaxWidth(0.8f)) {
             Text(text = tag.name ?: stringResource(id = R.string.unknown))
         }
 
-        IconButton(onClick = { onDelete(tag) }, modifier = Modifier.padding(elementPadding)) {
+        IconButton(onClick = { vm.showTagDeleteDialog=true }, modifier = Modifier.padding(elementPadding)) {
             Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(id = R.string.delete) )
         }
     }
+    if(vm.showTagDeleteDialog){
+        AlertDialog(
+            onDismissRequest = {vm.showTagDeleteDialog=false},
+
+            title = {
+                Text(text = "Tag-Lösch Dialog")
+            },
+            text = {
+                Text(
+                    "Tag löschen?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete(tag)
+                        vm.showTagDeleteDialog=false
+
+                    }
+                ) {
+                    Text("Ja")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {vm.showTagDeleteDialog=false}
+
+                ) {
+                    Text("Nein")
+                }
+            }
+        )
+    }
 }
+
+
