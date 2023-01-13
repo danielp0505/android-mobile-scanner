@@ -29,11 +29,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.auth.FirebaseAuth
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.data.DocumentDAO
 import de.thm.ap.mobile_scanner.model.Document
-import de.thm.ap.mobile_scanner.model.DocumentTagRelation
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,6 +46,8 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
+
+    val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
     fun deleteDocument(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -79,32 +81,19 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         contextualMode = false
         selectedDocuments.clear()
     }
-
-    fun createDocumentTagRelation(document: Document, tag: Tag){
-        if (document.documentId != null && tag.tagId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                docDAO.persist(DocumentTagRelation(document.documentId!!, tag.tagId!!))
-            }
-        }
-    }
-
-    fun deleteDocumentTagRelation(document: Document, tag: Tag) {
-        if (document.documentId != null && tag.tagId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                docDAO.delete(DocumentTagRelation(document.documentId!!, tag.tagId!!))
-            }
-        }
-    }
 }
 
 @Composable
 fun DocumentsListScreen(
     openTagManagement: () -> Unit,
     addDocument: () -> Unit,
-    editDocument: (Long) -> Unit
+    editDocument: (Long) -> Unit,
+    login: () -> Unit,
+    logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+
     Scaffold(
         topBar =
         {
@@ -149,8 +138,23 @@ fun DocumentsListScreen(
             AddDocumentButton({addDocument()})
         },
         bottomBar = {
-            BottomAppBar() {
+            BottomAppBar(
+            ) {
                 Text(text = stringResource(id = R.string.number_of_documents) + ": " + documentsWithTags.size)
+                Spacer(modifier = Modifier.weight(1f))
+                Button(onClick = {
+                    if(vm.auth.currentUser == null){
+                        login()
+                    } else {
+                        logout()
+                    }
+                }) {
+                    var textId by remember{mutableStateOf(if (vm.auth.currentUser == null) R.string.login else R.string.logout)}
+                    vm.auth.addAuthStateListener {
+                        textId = if (vm.auth.currentUser == null) R.string.login else R.string.logout
+                    }
+                    Text(text = stringResource(id = textId))
+                }
             }
         }
     ) { innerPadding ->
@@ -230,7 +234,7 @@ fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsLi
             secondaryText = {
                 LazyRow(content = {
                     items(items = tags, key = { it.tagId!! }) { tag ->
-                        tagButton(tag = tag, onClick = null)
+                        TagButton(tag = tag, onClick = null)
                     }
                 })
             },
@@ -283,7 +287,7 @@ fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsLi
 }
 
 @Composable
-fun tagButton(tag: Tag, onClick: Function<R>?) {
+fun TagButton(tag: Tag, onClick: Function<R>?) {
     Button(content = {
         Text(
             text = tag.name
