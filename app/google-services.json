@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "898584821692",
+    "project_id": "mobile-scanner-ce9ba",
+    "storage_bucket": "mobile-scanner-ce9ba.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:898584821692:android:883e49d6ebe1dad8a9b5b9",
+        "android_client_info": {
+          "package_name": "de.thm.ap.mobile_scanner"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "898584821692-m5d0vgus8bj65o338lbup2u90p2opksi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "de.thm.ap.mobile_scanner",
+            "certificate_hash": "46f892a0fbac8f319bf9c9dbb1f62116cd655f9b"
+          }
+        },
+        {
+          "client_id": "898584821692-sg2rj7isfh7fsh9r9js4f4c0e7cdcji7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "de.thm.ap.mobile_scanner",
+            "certificate_hash": "f554bdb58c10b94997720cc099b5f4f1e2609c18"
+          }
+        },
+        {
+          "client_id": "898584821692-s3o97uja0kct2c3j8r6h68u5ji5iantv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsdVIqzGwaiWUovwI2K49KfGZyBZfmxFg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "898584821692-s3o97uja0kct2c3j8r6h68u5ji5iantv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

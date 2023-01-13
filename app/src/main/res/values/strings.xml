@@ -23,4 +23,6 @@
     <string name="delete_image">Bild köschen</string>
     <string name="add_image">Bild hinzufügen</string>
     <string name="take_photo">Foto aufnehmen</string>
+    <string name="login">Einloggen</string>
+    <string name="logout">Ausloggen</string>
 </resources>
