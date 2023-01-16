@@ -1,6 +1,9 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
+import android.content.ClipData
+import android.content.Context
+import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -19,12 +22,14 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -34,6 +39,7 @@ import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.data.DocumentDAO
 import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.DocumentTagRelation
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -81,6 +87,27 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         contextualMode = false
         selectedDocuments.clear()
     }
+    fun shareDocument(context: Context, documentId: Long) {
+        viewModelScope.launch {
+            val images = docDAO.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }
+            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "image/*"
+                var clip: ClipData? = null
+                images.forEach {
+                    if (clip == null) {
+                        clip = ClipData.newRawUri("", it)
+                    } else {
+                        clip!!.addItem(ClipData.Item(it))
+                    }
+                }
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(images))
+
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }.also {
+                context.startActivity(Intent.createChooser(it, "Dokument teilen"))
+            }
+        }
+    }
 }
 
 @Composable
@@ -92,6 +119,7 @@ fun DocumentsListScreen(
     logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
+    val context = LocalContext.current
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
 
     Scaffold(
@@ -177,7 +205,8 @@ fun DocumentsListScreen(
                         document = documentWithTags.document,
                         tags = documentWithTags.tags,
                         viewModel = vm,
-                        editDocument = {editDocument(documentWithTags.document.documentId!!)}
+                        editDocument = {editDocument(documentWithTags.document.documentId!!)},
+                        shareDocument = {vm.shareDocument(context, documentWithTags.document.documentId!!)}
                     )
                     Divider(color = Color.Gray)
                 }
@@ -195,7 +224,7 @@ fun AddDocumentButton(onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel, editDocument: () -> Unit) {
+fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel, editDocument: () -> Unit, shareDocument: () -> Unit) {
     val swipeableState = rememberSwipeableState(initialValue = 0)
     val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
     val anchors = mapOf(0f to 0, sizePx to 1)
@@ -253,12 +282,18 @@ fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsLi
                             contentDescription = stringResource(id = R.string.delete)
                         )
                     }
-                   IconButton(onClick = {editDocument()}) {
+                    IconButton(onClick = {shareDocument()}) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(id = R.string.share)
+                        )
+                    }
+                    IconButton(onClick = {editDocument()}) {
                        Icon(
                            imageVector = Icons.Default.Edit,
                            contentDescription = stringResource(id = R.string.edit)
                        )
-                   } 
+                   }
                 }
             }
         )
