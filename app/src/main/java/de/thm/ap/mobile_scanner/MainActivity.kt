@@ -34,38 +34,44 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-    private val db: FirebaseFirestore = Firebase.firestore
+    private val firestore_db: FirebaseFirestore = Firebase.firestore
     private var userDocRef: DocumentReference? = null
+
     private val signInLauncher = registerForActivityResult(
         FirebaseAuthUIActivityResultContract()
     ) { result: FirebaseAuthUIAuthenticationResult? ->
         Log.d("AUTH", "USER: " + auth.currentUser)
-        this.lifecycleScope.launch(Dispatchers.IO){
-        if (auth.currentUser != null) {
+        this.lifecycleScope.launch(Dispatchers.IO) {
+            if (auth.currentUser == null) return@launch
+
             val user = hashMapOf(
                 "uid" to auth.currentUser!!.uid,
-                "name" to "Dummy"
+                "name" to auth.currentUser!!.displayName
             )
-            db.collection("users").whereEqualTo("uid", auth.currentUser!!.uid)
-                .get().addOnFailureListener{
-                    db.collection("users").add(user)
-                        .addOnSuccessListener {
-                                documentReference ->
-                            Log.d("FIRESTORE", "UserDocument added with ID: ${documentReference.id}")
+            firestore_db
+                .collection("users")
+                .whereEqualTo("uid", auth.currentUser!!.uid)
+                .get()
+                .addOnSuccessListener { querySnapshot: QuerySnapshot ->
+                    when {
+                        // user doasn't exist
+                        querySnapshot.isEmpty -> {
+                            firestore_db.collection("users").add(user)
+                                .addOnSuccessListener { userDocRef = it }
                         }
-                        .addOnFailureListener { e ->
-                            Log.w("FIRESTORE", "Error adding document", e)
-                        }
-                }.addOnSuccessListener { querySnapshot: QuerySnapshot ->
-                    querySnapshot.forEach{documentSnapshot: QueryDocumentSnapshot ->
-                        val userData = documentSnapshot.toObject<User>()
-                        if(userData.uid == auth.currentUser!!.uid){
-                            userDocRef = documentSnapshot.reference
+                        //user exist
+                        else -> {
+                            querySnapshot.forEach { documentSnapshot: QueryDocumentSnapshot ->
+                                val userData = documentSnapshot.toObject<User>()
+                                if (userData.uid == auth.currentUser!!.uid) {
+                                    userDocRef = documentSnapshot.reference
+                                }
+                            }
                         }
                     }
+
                 }
 
-        }
         }
     }
 
