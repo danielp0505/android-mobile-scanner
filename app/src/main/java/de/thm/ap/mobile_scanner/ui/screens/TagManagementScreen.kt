@@ -162,49 +162,51 @@ fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onD
 
 
         }
-        if(vm.isEditMode){
+
+        //if(vm.isEditMode){
         IconButton(onClick = { vm.showTagDeleteDialog=true }, modifier = Modifier.padding(elementPadding)) {
             Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(id = R.string.delete) )
         }
-    }
+    //}
 
-    }
+//Der Dialog beim drücken auf den Delete Knopf
+        if(vm.showTagDeleteDialog){
+            AlertDialog(
+                onDismissRequest = {vm.showTagDeleteDialog=false},
 
-    //Der Dialog beim drücken auf den Delete Knopf
-    if(vm.showTagDeleteDialog){
-        AlertDialog(
-            onDismissRequest = {vm.showTagDeleteDialog=false},
-
-            title = {
-                Text(text = "Löschen")
-            },
-            text = {
-                Text(
-                    "Tag löschen?"
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDelete(selectedTag)
-                        vm.showTagDeleteDialog=false
+                title = {
+                    Text(text = "Löschen")
+                },
+                text = {
+                    Text(
+                        "Tag löschen?"
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDelete(tag)
+                            vm.showTagDeleteDialog=false
 
 
+                        }
+                    ) {
+                        Text("Ja")
                     }
-                ) {
-                    Text("Ja")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {vm.showTagDeleteDialog=false}
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {vm.showTagDeleteDialog=false}
 
-                ) {
-                    Text("Nein")
+                    ) {
+                        Text("Nein")
+                    }
                 }
-            }
-        )
+            )
+        }
     }
+
+
 }
 
 
