@@ -91,7 +91,6 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-           // var tag by remember { mutableStateOf("") }
             TextField(value = vm.tagName, onValueChange = { vm.tagName = it })
             Button(onClick = {
                 //wenn Eingabe leer soll kein Tag erstellt werden
@@ -104,14 +103,10 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
                     }
                     //nach erstellen von Tag wird Eingabefeld wieder geleert
                     vm.tagName = ""
-
                 }
             }) {
                 Text(text = stringResource(id = if (vm.isEditMode) R.string.update_tag else R.string.create_tag))
-
-
             }
-
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
                 items(
