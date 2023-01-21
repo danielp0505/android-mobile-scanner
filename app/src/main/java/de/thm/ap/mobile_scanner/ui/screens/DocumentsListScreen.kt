@@ -15,7 +15,6 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -30,9 +29,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ListenerRegistration
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.data.DocumentDAO
+import de.thm.ap.mobile_scanner.data.ReferenceCollection
+import de.thm.ap.mobile_scanner.data.convertQueryToDocumentWithTagsList
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +50,9 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
 
     val auth: FirebaseAuth = FirebaseAuth.getInstance()
+
+    var snapshotListener: ListenerRegistration? = null
+    var firestoreDocs: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
 
     fun deleteDocument(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -81,6 +86,31 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         contextualMode = false
         selectedDocuments.clear()
     }
+
+    //todo: document list not retrieved
+    fun initSnapshotListener(){
+        if(snapshotListener == null) {
+            snapshotListener = ReferenceCollection.userDocReference
+                ?.collection("documents")
+                ?.addSnapshotListener { querySnapshot, error ->
+                    if (error == null && querySnapshot != null) {
+                        firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                    }
+                }
+        }
+    }
+
+    init {
+        initSnapshotListener()
+        ReferenceCollection.userDocReference?.collection("documents")
+            ?.get()
+            ?.addOnSuccessListener { querySnapshot ->
+                if (querySnapshot != null) {
+                    firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                }
+            }
+
+    }
 }
 
 @Composable
@@ -92,7 +122,9 @@ fun DocumentsListScreen(
     logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
-    val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+    vm.initSnapshotListener()
+    //val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+    val documentsWithTags = vm.firestoreDocs
 
     Scaffold(
         topBar =

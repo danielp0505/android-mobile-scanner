@@ -7,6 +7,9 @@ import androidx.room.PrimaryKey
 data class Document(
   @PrimaryKey
   var documentId: Long? = null,
+  /**
+   * URI used for Firebase Firestore reference path
+   */
   var uri: String? = null,
   var title: String? = null,
 )

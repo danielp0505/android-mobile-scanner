@@ -21,9 +21,8 @@ import com.firebase.ui.auth.data.model.FirebaseAuthUIAuthenticationResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.*
 import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.ktx.toObject
 import com.google.firebase.ktx.Firebase
-import de.thm.ap.mobile_scanner.model.firebase.User
+import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
 import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
@@ -35,12 +34,17 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val firestore_db: FirebaseFirestore = Firebase.firestore
-    private var userDocRef: DocumentReference? = null
 
     private val signInLauncher = registerForActivityResult(
         FirebaseAuthUIActivityResultContract()
     ) { result: FirebaseAuthUIAuthenticationResult? ->
         Log.d("AUTH", "USER: " + auth.currentUser)
+        handleUserDocument()
+    }
+    /**
+     * Function needs to be run after sign in and at startup
+     */
+    private fun handleUserDocument(){
         this.lifecycleScope.launch(Dispatchers.IO) {
             if (auth.currentUser == null) return@launch
 
@@ -57,25 +61,24 @@ class MainActivity : ComponentActivity() {
                         // user doasn't exist
                         querySnapshot.isEmpty -> {
                             firestore_db.collection("users").add(user)
-                                .addOnSuccessListener { userDocRef = it }
+                                .addOnSuccessListener {
+                                    ReferenceCollection.userDocReference = it
+                                }
                         }
-                        //user exist
+                        //user exists
                         else -> {
                             querySnapshot.forEach { documentSnapshot: QueryDocumentSnapshot ->
-                                val userData = documentSnapshot.toObject<User>()
-                                if (userData.uid == auth.currentUser!!.uid) {
-                                    userDocRef = documentSnapshot.reference
+                                if (documentSnapshot.get("uid") == auth.currentUser!!.uid) {
+                                    ReferenceCollection.userDocReference = documentSnapshot.reference
                                 }
                             }
                         }
                     }
-
                 }
-
         }
     }
 
-     private fun startSignIn() {
+    private fun startSignIn() {
          Log.d("AUTH", "LOGIN START")
         val signInIntent = AuthUI.getInstance()
             .createSignInIntentBuilder()
@@ -99,7 +102,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        handleUserDocument()
 
         setContent {
             MobilescannerTheme {
@@ -115,7 +118,9 @@ class MainActivity : ComponentActivity() {
                                 openTagManagement = {
                                     navController.navigate("tagManagement")
                                 },
-                                addDocument = {navController.navigate("documentEditScreen")},
+                                addDocument = {
+                                        navController.navigate("documentEditScreen")
+                                              },
                                 editDocument = { documentId: Long ->
                                     navController.navigate("documentEditScreen/${documentId}")},
                                 login = { startSignIn() },

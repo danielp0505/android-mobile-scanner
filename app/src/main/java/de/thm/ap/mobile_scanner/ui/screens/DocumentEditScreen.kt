@@ -43,19 +43,28 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.map
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageReference
+import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
+import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.DocumentImageRelation
 import de.thm.ap.mobile_scanner.model.Image
 import de.thm.ap.mobile_scanner.model.Tag
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
+import kotlin.collections.HashMap
 import kotlin.math.roundToInt
 
 
@@ -67,7 +76,14 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
     var images = mutableStateListOf<Uri>()
     var selectedTags: MutableList<Tag> = mutableStateListOf()
 
+    val storage: StorageReference? =
+        FirebaseAuth.getInstance().currentUser?.let {
+            Firebase.storage
+                .getReference(it.uid)
+        }
+
     fun initDocument(documentId: Long?) {
+        //todo: init from Firebase
         if (documentId == null) return
         viewModelScope.launch {
             document = dao.findDocumentById(documentId)
@@ -79,6 +95,9 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
     fun saveDocument() {
         if (isEditMode()) {
             viewModelScope.launch {
+                //todo: Update document in Firestore
+
+                /* Local Update
                 dao.update(document)
                 selectedTags.forEach { dao.persist(document.documentId!!, it.tagId!!) }
 
@@ -89,13 +108,42 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
                 images_ids.forEach { dao.persist(DocumentImageRelation(document.documentId!!, it)) }
+                 */
             }
         } else {
-            viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
+                //todo: handle images
+                var newDoc: HashMap<String, Any?>? = null
+                    if (tags.value?.isEmpty() == true){
+                    newDoc = hashMapOf(
+                        "title" to document.title
+                    )
+                    } else {
+                        val tagList: List<String?> = tags.value!!.map { tag: Tag -> tag.name }
+                        newDoc = hashMapOf(
+                            "title" to document.title,
+                            "tags" to tagList
+                        )
+                    }
+                ReferenceCollection.userDocReference
+                    ?.collection("documents")
+                    ?.add(newDoc)
+                    ?.addOnSuccessListener { documentReference ->
+                        if (documentReference != null){
+                            val ref = storage?.child(documentReference.id)
+                            var i: Long = 0
+                            images.forEach{ uri ->
+                                ref?.child(i.toString())?.putFile(uri)
+                                i++
+                            }
+                        }
+                    }
+                /* Local Persist
                 val documentId = dao.persist(document)
                 selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
                 val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
                 images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
+                 */
             }
         }
     }
