@@ -1,7 +1,6 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
-import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -27,15 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
 import de.thm.ap.mobile_scanner.R
-import de.thm.ap.mobile_scanner.data.AppDatabase
-import de.thm.ap.mobile_scanner.data.DocumentDAO
-import de.thm.ap.mobile_scanner.data.ReferenceCollection
-import de.thm.ap.mobile_scanner.data.convertQueryToDocumentWithTagsList
+import de.thm.ap.mobile_scanner.data.*
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.Dispatchers
@@ -56,18 +51,29 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     var firestoreDocs: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
 
     fun deleteDocument(document: Document) {
+        document.uri?.let {
+            deleteDocumentAndImages(it)
+        }
+        /*
         viewModelScope.launch(Dispatchers.IO) {
             docDAO.delete(document)
-        }
+        }*/
     }
 
     fun deleteSelection() {
+        selectedDocuments.forEach{document ->
+            deleteDocument(document)
+        }
+        exitContextualMode()
+        /* Local deletion
         viewModelScope.launch(Dispatchers.IO) {
             docDAO.deleteDocumentList(selectedDocuments)
             launch(Dispatchers.Main) {
                 exitContextualMode()
             }
+
         }
+         */
     }
 
     fun toggleWithSelection(document: Document) {
