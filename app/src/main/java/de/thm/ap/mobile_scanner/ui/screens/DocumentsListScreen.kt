@@ -1,6 +1,7 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -87,8 +88,14 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         selectedDocuments.clear()
     }
 
-    //todo: document list not retrieved
-    fun initSnapshotListener(){
+    fun initQueries(){
+        ReferenceCollection.userDocReference?.collection("documents")
+            ?.get()
+            ?.addOnSuccessListener { querySnapshot ->
+                if (querySnapshot != null) {
+                    firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                }
+            }
         if(snapshotListener == null) {
             snapshotListener = ReferenceCollection.userDocReference
                 ?.collection("documents")
@@ -100,17 +107,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    init {
-        initSnapshotListener()
-        ReferenceCollection.userDocReference?.collection("documents")
-            ?.get()
-            ?.addOnSuccessListener { querySnapshot ->
-                if (querySnapshot != null) {
-                    firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
-                }
-            }
-
-    }
 }
 
 @Composable
@@ -122,7 +118,9 @@ fun DocumentsListScreen(
     logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
-    vm.initSnapshotListener()
+    if(ReferenceCollection.userDocReference != null){
+        vm.initQueries()
+    }
     //val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
     val documentsWithTags = vm.firestoreDocs
 

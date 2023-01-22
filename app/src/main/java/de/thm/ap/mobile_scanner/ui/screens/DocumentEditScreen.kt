@@ -112,27 +112,26 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             }
         } else {
             viewModelScope.launch(Dispatchers.IO) {
-                //todo: handle images
-                var newDoc: HashMap<String, Any?>? = null
-                    if (tags.value?.isEmpty() == true){
+                var newDoc: HashMap<String, Any?>?
+                if (tags.value?.isEmpty() == true) {
                     newDoc = hashMapOf(
                         "title" to document.title
                     )
-                    } else {
-                        val tagList: List<String?> = tags.value!!.map { tag: Tag -> tag.name }
-                        newDoc = hashMapOf(
-                            "title" to document.title,
-                            "tags" to tagList
-                        )
-                    }
+                } else {
+                    val tagList: List<String?> = tags.value!!.map { tag: Tag -> tag.name }
+                    newDoc = hashMapOf(
+                        "title" to document.title,
+                        "tags" to tagList
+                    )
+                }
                 ReferenceCollection.userDocReference
                     ?.collection("documents")
                     ?.add(newDoc)
                     ?.addOnSuccessListener { documentReference ->
-                        if (documentReference != null){
+                        if (documentReference != null) {
                             val ref = storage?.child(documentReference.id)
                             var i: Long = 0
-                            images.forEach{ uri ->
+                            images.forEach { uri ->
                                 ref?.child(i.toString())?.putFile(uri)
                                 i++
                             }
