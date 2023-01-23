@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -19,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -39,6 +43,8 @@ class TagManagementViewModel(app: Application) : AndroidViewModel(app) {
     val tags: LiveData<List<Tag>> = docDAO.findAllTagsSync()
     var tagName: String by mutableStateOf(String())
     var selectedTag: Tag by mutableStateOf(Tag())
+    var tagToDelete: Tag by mutableStateOf(Tag())
+    var showTagDeleteDialog by mutableStateOf(false)
 
     fun toggleEditMode(tag: Tag) {
         if (isEditMode && tag == selectedTag) {
@@ -66,7 +72,22 @@ class TagManagementViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteTag(tag: Tag) {
         viewModelScope.launch(Dispatchers.IO) {
             docDAO.delete(tag)
+            //damit es nach dem Delete nicht im Edit Mode stecken bleibt
+            isEditMode=false
         }
+    }
+
+    fun updateOrpersist(){
+        //wenn Eingabe leer soll kein Tag erstellt werden
+        if(tagName!="" && isEditMode) {
+            updateTag(Tag(selectedTag.tagId, tagName))
+            //Veränderung damit nach dem Aktualisieren das Highlighten des Tags verschwindet
+            isEditMode=false
+        }  else if(tagName!=""&& !isEditMode) {
+            persistTag(tagName)
+        }
+        //nach erstellen vom Tag wird Eingabefeld wieder geleert
+        tagName = ""
     }
 }
 
@@ -87,20 +108,25 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
         }
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            TextField(value = vm.tagName, onValueChange = { vm.tagName = it })
+            TextField(
+                keyboardOptions= KeyboardOptions(
+                    keyboardType= KeyboardType.Email,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions =  KeyboardActions({vm.updateOrpersist()}),
+                value = vm.tagName,
+                onValueChange = { vm.tagName = it },
+                )
             Button(onClick = {
-                if (vm.isEditMode) {
-                    vm.updateTag(Tag(vm.selectedTag.tagId, vm.tagName))
-                } else {
-                    vm.persistTag(vm.tagName)
-                }
+                vm.updateOrpersist()
             }) {
                 Text(text = stringResource(id = if (vm.isEditMode) R.string.update_tag else R.string.create_tag))
-
             }
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
@@ -108,26 +134,61 @@ fun TagManagementScreen(dismissTagManager: () -> Unit) {
                     items = tags,
                     key = { it.tagId!! }) { tag ->
                     TagListItem(tag = tag, selectedTag = vm.selectedTag, onSelection = {
-                        selectedTag -> vm.toggleEditMode(selectedTag) },
-                        onDelete = {selectedTag -> vm.deleteTag(selectedTag)})
+                            selectedTag -> vm.toggleEditMode(selectedTag) },
+                        onDelete = {vm.showTagDeleteDialog=true
+                            vm.tagToDelete=tag}
+                    )
                     Divider(modifier = Modifier.fillMaxWidth())
                 }
             }
+            if(vm.showTagDeleteDialog) DeleteDialog(tagdelete = vm.tagToDelete)
         }
     }
 }
 
 @Composable
-fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onDelete: (tag: Tag) -> Unit){
+fun DeleteDialog(tagdelete: Tag){
+    //Der Dialog beim drücken auf den Delete Knopf
+    val vm: TagManagementViewModel = viewModel()
+    AlertDialog(
+        onDismissRequest = { vm.showTagDeleteDialog = false },
+        title = {
+            Text(text = "Löschen")
+        },
+        text = {
+            Text("Tag löschen?")
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    vm.deleteTag(tagdelete)
+                    vm.showTagDeleteDialog = false
+                }
+            ) { Text("Ja") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = { vm.showTagDeleteDialog = false }
+            ) { Text("Nein") }
+        }
+    )
+}
+
+@Composable
+fun TagListItem(tag: Tag, selectedTag: Tag, onSelection: (tag: Tag) -> Unit, onDelete:() -> Unit){
+    val vm: TagManagementViewModel = viewModel()
     val elementPadding = 12.dp
     val rowBaseModifier = Modifier.fillMaxWidth()
     Row(horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = if (tag.tagId == selectedTag.tagId) rowBaseModifier.background(Color.Gray) else rowBaseModifier) {
-        Button(onClick = { onSelection(tag) }, Modifier.padding(elementPadding).fillMaxWidth(0.8f)) {
+        //damit nach dem löschen eines Tags das highlighten verschwindet
+        modifier = if (tag.tagId == selectedTag.tagId && vm.isEditMode) rowBaseModifier.background(Color.Gray) else rowBaseModifier) {
+        Button(onClick = { onSelection(tag) },
+            Modifier
+                .padding(elementPadding)
+                .fillMaxWidth(0.8f)) {
             Text(text = tag.name ?: stringResource(id = R.string.unknown))
         }
-
-        IconButton(onClick = { onDelete(tag) }, modifier = Modifier.padding(elementPadding)) {
+        IconButton(onClick = {  onDelete() }, modifier = Modifier.padding(elementPadding)) {
             Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(id = R.string.delete) )
         }
     }
