@@ -5,8 +5,10 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -118,6 +120,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
 }
 
 @Composable
@@ -126,24 +129,27 @@ fun MyTopAppBar(
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val focusRequester = remember { FocusRequester() }
+    val context = LocalContext.current
     when {
         vm.contextualMode -> {
-            TopAppBar(title = { Text(stringResource(id = R.string.app_name)) }, actions = {
-                IconButton(onClick = {}) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = stringResource(id = R.string.share_documents)
-                    )
-                }
-                IconButton(onClick = {
-                    vm.deleteSelection()
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(id = R.string.delete_documents)
-                    )
-                }
-            })
+            TopAppBar(title = { Text(stringResource(id = R.string.app_name)) },
+                backgroundColor = MaterialTheme.colors.primaryVariant,
+                navigationIcon = {
+                    IconButton(onClick = { vm.exitContextualMode() }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = stringResource(id = R.string.navigation_back)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { vm.deleteSelection() }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(id = R.string.delete_documents)
+                        )
+                    }
+                })
         }
         vm.isSearching -> {
             TopAppBar(backgroundColor = MaterialTheme.colors.background) {
@@ -256,7 +262,6 @@ fun DocumentsListScreen(
                 }, key = { it.document.documentId!! }) { documentWithTags ->
                     DocumentListItem(document = documentWithTags.document,
                         tags = documentWithTags.tags,
-                        viewModel = vm,
                         editDocument = {editDocument(documentWithTags.document.documentId!!)},
 						openDocument = { openDocument(documentWithTags.document.documentId!!) },
                         shareDocument = {vm.shareDocument(context, documentWithTags.document.documentId!!)}
@@ -282,54 +287,43 @@ fun AddDocumentButton(onClick: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun DocumentListItem(
     document: Document,
     tags: List<Tag>,
-    viewModel: DocumentsListViewModel,
     editDocument: () -> Unit,
     openDocument: () -> Unit,
 	shareDocument: () -> Unit
 ) {
     val vm: DocumentsListViewModel = viewModel()
-    val swipeableState = rememberSwipeableState(initialValue = 0)
-    val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
-    val anchors = mapOf(0f to 0, sizePx to 1)
-    val coroutineScope = rememberCoroutineScope()
     Row(
-        modifier = Modifier
-            .swipeable(
-                state = swipeableState,
-                orientation = Orientation.Horizontal,
-                anchors = anchors
-            )
     ) {
-        ListItem(
-            modifier = Modifier
-                .offset { IntOffset(swipeableState.offset.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { viewModel.toggleWithSelection(document) },
-                        onPress = {
-                            if (viewModel.contextualMode) {
-                                viewModel.toggleWithSelection(document)
-                            }
-                        }
-                    )
-                }
-                .background(color = if (viewModel.selectedDocuments.contains(document)) Color.Green else MaterialTheme.colors.background)
-                .clickable { openDocument() },
-            text = {
-                val title: String =
-                    if (document.title == null) stringResource(id = R.string.unnamed_document) else document.title!!
-                Text(
-                    text = title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip
-                )
-            },
-            secondaryText = {
+        ListItem(modifier = Modifier
+            .background(color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary else MaterialTheme.colors.background)
+            .combinedClickable(
+                onClick = {
+                    when {
+                        vm.contextualMode && !vm.selectedDocuments.contains(document) -> vm.selectedDocuments.add(
+                            document
+                        )
+                        vm.contextualMode && vm.selectedDocuments.contains(document) -> vm.selectedDocuments.remove(
+                            document
+                        )
+                        else -> openDocument()
+                    }
+                },
+                onLongClick = {
+                    vm.selectedDocuments.add(document)
+                    vm.contextualMode = true
+                },
+            ), text = {
+            val title: String =
+                if (document.title == null) stringResource(id = R.string.unnamed_document) else document.title!!
+            Text(
+                text = title, maxLines = 1, overflow = TextOverflow.Clip
+            )
+        }, secondaryText = {
                 LazyRow(content = {
                     items(items = tags, key = { it.tagId!! }) { tag ->
                         TagButton(tag = tag, onClick = {
@@ -341,55 +335,21 @@ fun DocumentListItem(
             },
             trailing = {
                 Row() {
-                    IconButton(
-                        onClick = {
-                            viewModel.deleteDocument(document)
-                            coroutineScope.launch(Dispatchers.Main) {
-                                swipeableState.snapTo(0)
-                            }
-                        },
-                    ) {
+                    IconButton(onClick = { editDocument() }) {
                         Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(id = R.string.delete)
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(id = R.string.edit)
                         )
                     }
-                    IconButton(onClick = {shareDocument()}) {
+                    IconButton(onClick = { shareDocument() }) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = stringResource(id = R.string.share)
                         )
                     }
-                    IconButton(onClick = {editDocument()}) {
-                       Icon(
-                           imageVector = Icons.Default.Edit,
-                           contentDescription = stringResource(id = R.string.edit)
-                       )
-                   }
                 }
             }
         )
-        //TODO: fix animation
-        AnimatedVisibility(
-            visible = (swipeableState.offset.value <= sizePx),
-            enter = slideInHorizontally(initialOffsetX = { -1 }) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { -1 }) + fadeOut()
-        ) {
-            IconButton(
-                onClick = {
-                    viewModel.deleteDocument(document)
-                    coroutineScope.launch(Dispatchers.Main) {
-                        swipeableState.snapTo(0)
-                    }
-                },
-                modifier = Modifier.background(Color.Red)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(id = R.string.delete)
-                )
-            }
-        }
     }
 }
 
