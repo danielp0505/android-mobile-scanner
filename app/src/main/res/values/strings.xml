@@ -25,4 +25,5 @@
     <string name="take_photo">Foto aufnehmen</string>
     <string name="login">Einloggen</string>
     <string name="logout">Ausloggen</string>
+    <string name="cancel">Abbrechen</string>
 </resources>
