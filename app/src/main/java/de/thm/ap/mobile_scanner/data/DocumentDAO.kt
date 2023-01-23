@@ -101,6 +101,9 @@ interface DocumentDAO {
   @Query("SELECT * FROM tag")
   suspend fun getTagsWithDocument(): List<TagWithDocuments>
 
+  @Transaction
+  @Query("SELECT * FROM document where documentId = :documentId")
+  suspend fun getDocumentWithTags(documentId: Long): DocumentWithTags
 
 
   data class DocumentWithImages(

@@ -47,10 +47,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
-import de.thm.ap.mobile_scanner.model.Document
-import de.thm.ap.mobile_scanner.model.DocumentImageRelation
-import de.thm.ap.mobile_scanner.model.Image
-import de.thm.ap.mobile_scanner.model.Tag
+import de.thm.ap.mobile_scanner.model.*
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.InputStream
@@ -73,6 +70,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             document = dao.findDocumentById(documentId)
             images = dao.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }
                 .toMutableStateList()
+            selectedTags = dao.getDocumentWithTags(documentId).tags.toMutableStateList()
         }
     }
 
@@ -80,6 +78,9 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
         if (isEditMode()) {
             viewModelScope.launch {
                 dao.update(document)
+                dao.getDocumentWithTags(document.documentId!!).tags.forEach {
+                    dao.delete(DocumentTagRelation(document.documentId!!, it.tagId!!))
+                }
                 selectedTags.forEach { dao.persist(document.documentId!!, it.tagId!!) }
 
                 //delete all images assosiated with this document and recreate them.
