@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -112,6 +113,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
 @Composable
 fun DocumentsListScreen(
+    openDocument: (id: Long) -> Unit,
     openTagManagement: () -> Unit,
     addDocument: () -> Unit,
     editDocument: (Long) -> Unit,
@@ -206,8 +208,9 @@ fun DocumentsListScreen(
                         tags = documentWithTags.tags,
                         viewModel = vm,
                         editDocument = {editDocument(documentWithTags.document.documentId!!)},
+						openDocument = { openDocument(documentWithTags.document.documentId!!) },
                         shareDocument = {vm.shareDocument(context, documentWithTags.document.documentId!!)}
-                    )
+						)
                     Divider(color = Color.Gray)
                 }
             }
@@ -224,7 +227,14 @@ fun AddDocumentButton(onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsListViewModel, editDocument: () -> Unit, shareDocument: () -> Unit) {
+fun DocumentListItem(
+    document: Document,
+    tags: List<Tag>,
+    viewModel: DocumentsListViewModel,
+    editDocument: () -> Unit,
+    openDocument: () -> Unit,
+	shareDocument: () -> Unit
+) {
     val swipeableState = rememberSwipeableState(initialValue = 0)
     val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
     val anchors = mapOf(0f to 0, sizePx to 1)
@@ -250,7 +260,8 @@ fun DocumentListItem(document: Document, tags: List<Tag>, viewModel: DocumentsLi
                         }
                     )
                 }
-                .background(color = if (viewModel.selectedDocuments.contains(document)) Color.Green else MaterialTheme.colors.background),
+                .background(color = if (viewModel.selectedDocuments.contains(document)) Color.Green else MaterialTheme.colors.background)
+                .clickable { openDocument() },
             text = {
                 val title: String =
                     if (document.title == null) stringResource(id = R.string.unnamed_document) else document.title!!
