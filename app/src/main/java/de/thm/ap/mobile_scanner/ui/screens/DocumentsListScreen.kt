@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
@@ -39,9 +38,10 @@ import kotlin.math.roundToInt
 
 class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     private val docDAO: DocumentDAO = AppDatabase.getDb(app.baseContext).documentDao()
+    /*
     val documentsWithTags: LiveData<List<DocumentDAO.DocumentWithTags>> =
         docDAO.findAllDocumentsWithTagsSync()
-
+    */
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
 
@@ -119,7 +119,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 fun DocumentsListScreen(
     openTagManagement: () -> Unit,
     addDocument: () -> Unit,
-    editDocument: (Long) -> Unit,
+    editDocument: (String) -> Unit,
     login: () -> Unit,
     logout: () -> Unit,
 ) {
@@ -213,7 +213,7 @@ fun DocumentsListScreen(
                         document = documentWithTags.document,
                         tags = documentWithTags.tags,
                         viewModel = vm,
-                        editDocument = {editDocument(documentWithTags.document.documentId!!)}
+                        editDocument = {editDocument(documentWithTags.document.uri!!)}
                     )
                     Divider(color = Color.Gray)
                 }

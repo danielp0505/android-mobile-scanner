@@ -121,8 +121,8 @@ class MainActivity : ComponentActivity() {
                                 addDocument = {
                                         navController.navigate("documentEditScreen")
                                               },
-                                editDocument = { documentId: Long ->
-                                    navController.navigate("documentEditScreen/${documentId}")},
+                                editDocument = { documentUID: String ->
+                                    navController.navigate("documentEditScreen/${documentUID}")},
                                 login = { startSignIn() },
                                 logout = { signOut() }
                             )
@@ -136,11 +136,11 @@ class MainActivity : ComponentActivity() {
                             DocumentEditScreen(navController = navController, null)
                         }
                         composable(
-                            "documentEditScreen/{documentId}",
-                            arguments = listOf(navArgument("documentId"){type = NavType.LongType})
+                            "documentEditScreen/{documentUID}",
+                            arguments = listOf(navArgument("documentUID"){type = NavType.StringType})
                         ) { backStackEntry: NavBackStackEntry ->
-                            val id = backStackEntry.arguments?.getLong("documentId")
-                            DocumentEditScreen(navController = navController, id)
+                            val uid = backStackEntry.arguments?.getString("documentUID")
+                            DocumentEditScreen(navController = navController, uid)
                         }
                     }
                 }

@@ -71,7 +71,7 @@ import kotlin.math.roundToInt
 class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
     val dao = AppDatabase.getDb(app).documentDao()
     var document: Document by mutableStateOf(Document())
-    fun isEditMode() = document.documentId != null
+    var isEditMode by mutableStateOf(false)
     val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
     var images = mutableStateListOf<Uri>()
     var selectedTags: MutableList<Tag> = mutableStateListOf()
@@ -82,8 +82,9 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 .getReference(it.uid)
         }
 
+    /*
+    Local Init
     fun initDocument(documentId: Long?) {
-        //todo: init from Firebase
         if (documentId == null) return
         viewModelScope.launch {
             document = dao.findDocumentById(documentId)
@@ -91,13 +92,79 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 .toMutableStateList()
         }
     }
+    */
+    //this variable is necessary to avoid a race condition
+    var uninitialized = true
+    fun initDocument(documentUID: String?) {
+        if (documentUID != null && images.isEmpty() && uninitialized) {
+            uninitialized = false
+            isEditMode = true
+            ReferenceCollection.userDocReference
+                ?.collection("documents")
+                ?.document(documentUID)
+                ?.get()?.addOnSuccessListener { documentSnapshot ->
+                    document = Document(uri = documentSnapshot.reference.id)
+                    val title = documentSnapshot.get("title")
+                    if (title is String) document =
+                        Document(title = title, uri = documentSnapshot.reference.id)
+                    val tags = documentSnapshot.get("tags")
 
+                    var i: Long = 0
+                    val tagList: MutableList<Tag> =
+                        if (tags is List<*>) tags.map { tag ->
+                            Tag(
+                                i++,
+                                tag.toString()
+                            )
+                        } as MutableList<Tag>
+                        else mutableListOf()
+                    if (tagList.isNotEmpty()) selectedTags = tagList
+
+                    storage?.child(documentSnapshot.reference.id)
+                        ?.listAll()?.addOnSuccessListener { listResult ->
+                            val temporaryList: MutableList<Uri> = mutableListOf()
+                            listResult.items.forEach { storageReference ->
+                                storageReference.downloadUrl.addOnSuccessListener { uri ->
+                                    //temporary list to sort by uri name
+                                    temporaryList.add(uri)
+                                    if(temporaryList.size == listResult.items.size){
+                                        temporaryList.sort()
+                                        temporaryList.forEach{imageUri -> images.add(imageUri)}
+                                    }
+                                }
+                            }
+                        }
+                }
+        }
+    }
+    
     fun saveDocument() {
-        if (isEditMode()) {
+        if (isEditMode) {
+            //Id is stored in uri
+            document.uri?.let { id ->
+                val folderRef = storage?.child(id)
+                images.forEachIndexed{index, image ->
+                    folderRef?.child(index.toString())?.putFile(image)
+                }
+                var updatedDoc: HashMap<String, Any?>?
+                if (tags.value?.isEmpty() == true) {
+                    updatedDoc = hashMapOf(
+                        "title" to document.title
+                    )
+                } else {
+                    val tagList: List<String?> = tags.value!!.map { tag: Tag -> tag.name }
+                    updatedDoc = hashMapOf(
+                        "title" to document.title,
+                        "tags" to tagList
+                    )
+                }
+                ReferenceCollection.userDocReference
+                    ?.collection("documents")
+                    ?.document(id)
+                    ?.set(updatedDoc)
+            }
+            /* Local Update
             viewModelScope.launch {
-                //todo: Update document in Firestore
-
-                /* Local Update
                 dao.update(document)
                 selectedTags.forEach { dao.persist(document.documentId!!, it.tagId!!) }
 
@@ -108,8 +175,8 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
                 images_ids.forEach { dao.persist(DocumentImageRelation(document.documentId!!, it)) }
-                 */
             }
+         */
         } else {
             viewModelScope.launch(Dispatchers.IO) {
                 var newDoc: HashMap<String, Any?>?
@@ -185,16 +252,17 @@ fun DropDownItemMenuWithCheckbox(
             content()
         }
     }
-
 }
 
 @Composable
 fun DocumentEditScreen(
     navController: NavController,
-    documentId: Long?,
+    //documentId: Long?,
+    documentUID: String?
 ) {
     val vm: DocumentEditScreenViewModel = viewModel()
-    vm.initDocument(documentId)
+    vm.initDocument(documentUID)
+
     val tags by vm.tags.observeAsState()
 
     var tagsExpanded by remember { mutableStateOf(false) }
@@ -210,7 +278,7 @@ fun DocumentEditScreen(
                     )
                 }
             },
-                title = { Text(text = stringResource(id = if (vm.isEditMode()) R.string.edit_document else R.string.create_document)) })
+                title = { Text(text = stringResource(id = if (vm.isEditMode) R.string.edit_document else R.string.create_document)) })
         },
         content = { padding ->
 
@@ -292,12 +360,14 @@ fun DocumentEditScreen(
 
 }
 
+
+
 @Composable
 fun ImageBox(
-  uri: Uri,
+  uri: Uri?,
   contentDescription: String,
   onRelease: (Float, Float) -> Unit,
-  onGloballyPositioned: (LayoutCoordinates) -> Unit
+  onGloballyPositioned: (LayoutCoordinates) -> Unit,
 ) {
   val vm: DocumentEditScreenViewModel = viewModel()
   var offsetX by remember { mutableStateOf(0f) }
