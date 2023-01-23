@@ -19,6 +19,7 @@ import com.firebase.ui.auth.FirebaseAuthUIActivityResultContract
 import com.firebase.ui.auth.data.model.FirebaseAuthUIAuthenticationResult
 import com.google.firebase.auth.FirebaseAuth
 import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
+import de.thm.ap.mobile_scanner.ui.screens.DocumentViewScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
 import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
 import de.thm.ap.mobile_scanner.ui.theme.MobilescannerTheme
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = "documentsList") {
                         composable("documentsList") { backStackEntry: NavBackStackEntry ->
                             DocumentsListScreen(
+                                openDocument = { navController.navigate("documentViewScreen/${it}")},
                                 openTagManagement = {
                                     navController.navigate("tagManagement")
                                 },
@@ -93,6 +95,19 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry: NavBackStackEntry ->
                             val id = backStackEntry.arguments?.getLong("documentId")
                             DocumentEditScreen(navController = navController, id)
+                        }
+                        composable(
+                            "documentViewScreen/{documentId}",
+                            arguments = listOf(navArgument("documentId"){type = NavType.LongType})
+                        ) { backStackEntry: NavBackStackEntry ->
+                            val id = backStackEntry.arguments?.getLong("documentId")!!
+                            DocumentViewScreen(
+                                id,
+                                { navController.navigateUp() },
+                                editDocument = { documentId: Long ->
+                                    navController.navigate("documentEditScreen/${documentId}")
+                                },
+                            )
                         }
                     }
                 }
