@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
@@ -29,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.*
@@ -55,6 +53,8 @@ import de.thm.ap.mobile_scanner.model.Image
 import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.*
 import kotlin.math.roundToInt
 
@@ -325,21 +325,42 @@ fun calcStepsToMove(index: Int, offset: Float, widths: List<Int>): Int {
   return stepsToMove
 }
 
+private fun InputStream.copyTo(dest: OutputStream) {
+    val buf = ByteArray(8192)
+    var length: Int
+    while (this.read(buf).also { length = it } != -1) {
+        dest.write(buf, 0, length)
+    }
+
+}
+
+private fun Uri.copyTo(context: Context, dest: Uri) {
+    val contentResolver = context.contentResolver
+    val source_stream = contentResolver.openInputStream(this)
+    val dest_stream = contentResolver.openOutputStream(dest)
+    if (source_stream == null || dest_stream == null) return
+    source_stream.copyTo(dest_stream, 8192)
+}
+
 @Composable
 private fun ImageArea(
     images: MutableList<Uri>,
     modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val uuid by remember { mutableStateOf(UUID.randomUUID()) }
-  val baseDir = File(context.filesDir, uuid.toString())
-  var imagePositions = remember{arrayOfNulls<LayoutCoordinates>(100) }
-  val vm: DocumentEditScreenViewModel = viewModel()
-  val getImageFromGalleryLauncher = rememberLauncherForActivityResult(contract = GetContent()) {
-    if (it != null) images.add(it)
-  }
-  val getImageFromCameraLauncher = rememberLauncherForActivityResult(contract = TakePicture()) {
-    if (it != null) images.add(it)
+    val vm: DocumentEditScreenViewModel = viewModel()
+    val baseDir = File(context.filesDir, vm.document.uuid)
+    var imagePositions = remember { arrayOfNulls<LayoutCoordinates>(100) }
+    val getImageFromGalleryLauncher = rememberLauncherForActivityResult(contract = GetContent()) {
+        if (it == null) return@rememberLauncherForActivityResult
+
+        val file = File(baseDir, "${images.size}.jpg")
+        val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
+        it.copyTo(context, uri)
+        images.add(uri)
+    }
+    val getImageFromCameraLauncher = rememberLauncherForActivityResult(contract = TakePicture()) {
+        if (it != null) images.add(it)
   }
   baseDir.mkdirs()
   Box(
