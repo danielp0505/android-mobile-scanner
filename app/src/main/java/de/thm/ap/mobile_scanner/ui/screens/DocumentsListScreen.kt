@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +50,13 @@ import kotlin.math.roundToInt
 
 class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     private val docDAO: DocumentDAO = AppDatabase.getDb(app.baseContext).documentDao()
+    var isSearching by mutableStateOf(false)
+    fun set(it: Boolean) {
+        searchString = ""
+        it
+    }
+
+    var searchString by mutableStateOf("")
     val documentsWithTags: LiveData<List<DocumentDAO.DocumentWithTags>> =
         docDAO.findAllDocumentsWithTagsSync()
 
@@ -112,6 +121,91 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
+fun MyTopAppBar(
+    openTagManagement: () -> Unit,
+) {
+    val vm: DocumentsListViewModel = viewModel()
+    val focusRequester = remember { FocusRequester() }
+    when {
+        vm.contextualMode -> {
+            TopAppBar(title = { Text(stringResource(id = R.string.app_name)) }, actions = {
+                IconButton(onClick = {}) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = stringResource(id = R.string.share_documents)
+                    )
+                }
+                IconButton(onClick = {
+                    vm.deleteSelection()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(id = R.string.delete_documents)
+                    )
+                }
+            })
+        }
+        vm.isSearching -> {
+            TopAppBar(backgroundColor = MaterialTheme.colors.background) {
+                Row() {
+                    IconButton(onClick = {
+                        vm.isSearching = false
+                        vm.searchString = ""
+
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = stringResource(
+                                id = R.string.navigation_back
+                            )
+                        )
+                    }
+                    TextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                        value = vm.searchString,
+                        onValueChange = { vm.searchString = it },
+                        colors = TextFieldDefaults.textFieldColors(
+                            backgroundColor = Color.White,
+                            cursorColor = MaterialTheme.colors.onBackground,
+                            focusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                        )
+                    )
+                    LaunchedEffect(Unit) {
+                        focusRequester.requestFocus()
+                    }
+                }
+            }
+        }
+        else -> {
+            TopAppBar(title = { Text(stringResource(id = R.string.app_name)) }, actions = {
+                IconButton(onClick = {
+                    openTagManagement()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = stringResource(id = R.string.manage_tags)
+                    )
+                }
+                IconButton(onClick = {
+                    vm.isSearching = true
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = stringResource(id = R.string.search)
+                    )
+                }
+            })
+        }
+    }
+
+}
+
+
+@Composable
 fun DocumentsListScreen(
     openDocument: (id: Long) -> Unit,
     openTagManagement: () -> Unit,
@@ -124,70 +218,28 @@ fun DocumentsListScreen(
     val context = LocalContext.current
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
 
-    Scaffold(
-        topBar =
-        {
-            TopAppBar(
-                title = { Text(stringResource(id = R.string.app_name)) },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            openTagManagement()
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = stringResource(id = R.string.manage_tags)
-                        )
-                    }
-                    if (vm.contextualMode) {
-                        IconButton(
-                            onClick = {}
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = stringResource(id = R.string.share_documents)
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                //todo: "Are you sure?" - popup
-                                vm.deleteSelection()
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = stringResource(id = R.string.delete_documents)
-                            )
-                        }
-                    }
+    Scaffold(topBar = { MyTopAppBar(openTagManagement) }, floatingActionButton = {
+        AddDocumentButton({ addDocument() })
+    }, bottomBar = {
+        BottomAppBar(
+        ) {
+            Text(text = stringResource(id = R.string.number_of_documents) + ": " + documentsWithTags.size)
+            Spacer(modifier = Modifier.weight(1f))
+            Button(onClick = {
+                if (vm.auth.currentUser == null) {
+                    login()
+                } else {
+                    logout()
                 }
-            )
-        },
-        floatingActionButton = {
-            AddDocumentButton({addDocument()})
-        },
-        bottomBar = {
-            BottomAppBar(
-            ) {
-                Text(text = stringResource(id = R.string.number_of_documents) + ": " + documentsWithTags.size)
-                Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = {
-                    if(vm.auth.currentUser == null){
-                        login()
-                    } else {
-                        logout()
-                    }
-                }) {
-                    var textId by remember{mutableStateOf(if (vm.auth.currentUser == null) R.string.login else R.string.logout)}
-                    vm.auth.addAuthStateListener {
-                        textId = if (vm.auth.currentUser == null) R.string.login else R.string.logout
-                    }
-                    Text(text = stringResource(id = textId))
+            }) {
+                var textId by remember { mutableStateOf(if (vm.auth.currentUser == null) R.string.login else R.string.logout) }
+                vm.auth.addAuthStateListener {
+                    textId = if (vm.auth.currentUser == null) R.string.login else R.string.logout
                 }
+                Text(text = stringResource(id = textId))
             }
         }
-    ) { innerPadding ->
+    }) { innerPadding ->
         if (documentsWithTags.isEmpty()) {
             Text(
                 text = stringResource(id = R.string.no_documents_found),
@@ -199,12 +251,10 @@ fun DocumentsListScreen(
         } else {
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
-                items(
-                    items = documentsWithTags,
-                    key = { it.document.documentId!! }
-                ) { documentWithTags ->
-                    DocumentListItem(
-                        document = documentWithTags.document,
+                items(items = documentsWithTags.filter {
+                    it.matches(vm.searchString)
+                }, key = { it.document.documentId!! }) { documentWithTags ->
+                    DocumentListItem(document = documentWithTags.document,
                         tags = documentWithTags.tags,
                         viewModel = vm,
                         editDocument = {editDocument(documentWithTags.document.documentId!!)},
@@ -217,6 +267,13 @@ fun DocumentsListScreen(
         }
     }
 }
+
+private fun DocumentDAO.DocumentWithTags.matches(searchString: String): Boolean{
+    if (document.title?.contains(searchString, ignoreCase = true) ?: false) return true
+    if (tags.any { it.name?.contains(searchString, ignoreCase = true) ?:  false}) return true
+    return false
+}
+
 
 @Composable
 fun AddDocumentButton(onClick: () -> Unit) {
@@ -235,6 +292,7 @@ fun DocumentListItem(
     openDocument: () -> Unit,
 	shareDocument: () -> Unit
 ) {
+    val vm: DocumentsListViewModel = viewModel()
     val swipeableState = rememberSwipeableState(initialValue = 0)
     val sizePx = with(LocalDensity.current) { -60.dp.toPx() }
     val anchors = mapOf(0f to 0, sizePx to 1)
@@ -274,7 +332,10 @@ fun DocumentListItem(
             secondaryText = {
                 LazyRow(content = {
                     items(items = tags, key = { it.tagId!! }) { tag ->
-                        TagButton(tag = tag, onClick = null)
+                        TagButton(tag = tag, onClick = {
+                            vm.searchString = tag.name!!
+                            vm.isSearching = true
+                        })
                     }
                 })
             },
@@ -333,18 +394,16 @@ fun DocumentListItem(
 }
 
 @Composable
-fun TagButton(tag: Tag, onClick: Function<R>?) {
+fun TagButton(tag: Tag, onClick: () -> Unit) {
     Button(content = {
         Text(
-            text = tag.name
-                ?: stringResource(
-                    id = R.string.unknown
-                ),
-            fontSize = 11.sp
+            text = tag.name ?: stringResource(
+                id = R.string.unknown
+            ), fontSize = 11.sp
         )
-    }, onClick = { onClick },
+    },
+        onClick = { onClick() },
         shape = RoundedCornerShape(15.dp),
-        modifier = Modifier
-            .height(28.dp)
+        modifier = Modifier.height(28.dp)
     )
 }
