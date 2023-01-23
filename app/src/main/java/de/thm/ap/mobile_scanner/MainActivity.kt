@@ -21,7 +21,6 @@ import com.google.firebase.auth.FirebaseAuth
 import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentViewScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
-import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
 import de.thm.ap.mobile_scanner.ui.theme.MobilescannerTheme
 
 
@@ -71,20 +70,12 @@ class MainActivity : ComponentActivity() {
                         composable("documentsList") { backStackEntry: NavBackStackEntry ->
                             DocumentsListScreen(
                                 openDocument = { navController.navigate("documentViewScreen/${it}")},
-                                openTagManagement = {
-                                    navController.navigate("tagManagement")
-                                },
                                 addDocument = {navController.navigate("documentEditScreen")},
                                 editDocument = { documentId: Long ->
                                     navController.navigate("documentEditScreen/${documentId}")},
                                 login = { startSignIn() },
                                 logout = { signOut() }
                             )
-                        }
-                        composable("tagManagement") { backStackEntry: NavBackStackEntry ->
-                            TagManagementScreen(dismissTagManager = {
-                                navController.popBackStack()
-                            })
                         }
                         composable("documentEditScreen") { backStackEntry: NavBackStackEntry ->
                             DocumentEditScreen(navController = navController, null)

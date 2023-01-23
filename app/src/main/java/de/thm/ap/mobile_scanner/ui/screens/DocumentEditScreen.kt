@@ -48,6 +48,7 @@ import coil.compose.AsyncImage
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.*
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.InputStream
@@ -57,12 +58,14 @@ import kotlin.math.roundToInt
 
 
 class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
+    var showAddTagDialog by mutableStateOf(false)
     val dao = AppDatabase.getDb(app).documentDao()
     var document: Document by mutableStateOf(Document())
     fun isEditMode() = document.documentId != null
     val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
     var images = mutableStateListOf<Uri>()
     var selectedTags: MutableList<Tag> = mutableStateListOf()
+    var newTagText by mutableStateOf("")
 
     fun initDocument(documentId: Long?) {
         if (documentId == null) return
@@ -98,6 +101,12 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
                 images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
             }
+        }
+    }
+    fun addTag(name: String){
+        viewModelScope.launch {
+            val tag = Tag(name=name)
+            tag.tagId = dao.persist(tag)
         }
     }
 }
@@ -210,7 +219,6 @@ fun DocumentEditScreen(
                                 modifier = Modifier.padding(padding),
                                 selected = vm.selectedTags.contains(tag),
                                 onClick = {
-//                  vm.selectedTags = vm.selectedTags.also { if (it.contains(tag)) it.remove(tag) else it.add(tag) }
                                     vm.selectedTags.apply {
                                         if (contains(tag)) remove(tag) else add(
                                             tag
@@ -220,8 +228,32 @@ fun DocumentEditScreen(
                                 Text(text = tag.name!!)
                             }
                         }
+                        DropdownMenuItem(onClick = {vm.showAddTagDialog=true}) {
+                           Text(stringResource(R.string.add_tag))
+                        }
                     }
                 }
+
+            }
+            if(vm.showAddTagDialog){
+                AlertDialog(
+                    title = {Text(stringResource(id = R.string.add_tag))},
+                    text = {
+                        TextField( value = vm.newTagText, onValueChange = { vm.newTagText = it} )
+                    },
+                    onDismissRequest = {vm.showAddTagDialog = false},
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val tag = vm.addTag(vm.newTagText)
+                                vm.newTagText = ""
+                            }
+                        ) {
+                        Text(stringResource(R.string.add_tag))
+                        }
+                    },
+
+                )
 
             }
 

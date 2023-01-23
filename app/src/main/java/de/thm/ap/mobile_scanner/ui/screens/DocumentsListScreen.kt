@@ -125,7 +125,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
 @Composable
 fun MyTopAppBar(
-    openTagManagement: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val focusRequester = remember { FocusRequester() }
@@ -189,14 +188,6 @@ fun MyTopAppBar(
         else -> {
             TopAppBar(title = { Text(stringResource(id = R.string.app_name)) }, actions = {
                 IconButton(onClick = {
-                    openTagManagement()
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = stringResource(id = R.string.manage_tags)
-                    )
-                }
-                IconButton(onClick = {
                     vm.isSearching = true
                 }) {
                     Icon(
@@ -214,7 +205,6 @@ fun MyTopAppBar(
 @Composable
 fun DocumentsListScreen(
     openDocument: (id: Long) -> Unit,
-    openTagManagement: () -> Unit,
     addDocument: () -> Unit,
     editDocument: (Long) -> Unit,
     login: () -> Unit,
@@ -224,7 +214,7 @@ fun DocumentsListScreen(
     val context = LocalContext.current
     val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
 
-    Scaffold(topBar = { MyTopAppBar(openTagManagement) }, floatingActionButton = {
+    Scaffold(topBar = { MyTopAppBar() }, floatingActionButton = {
         AddDocumentButton({ addDocument() })
     }, bottomBar = {
         BottomAppBar(
