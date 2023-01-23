@@ -240,8 +240,20 @@ fun DocumentEditScreen(
             ) {
                 ImageArea(vm.images)
 
+                Divider(modifier = Modifier.padding(8.dp))
+
+                OutlinedTextField(
+                    value = vm.document.title ?: "",
+                    onValueChange = { vm.document = vm.document.copy(title = it) },
+                    singleLine = true,
+                    label = {
+                        Text(text = stringResource(id = R.string.document_title))
+                    })
+
+                    Divider(modifier = Modifier.padding(12.dp))
+
                 if(vm.showTagUpdateDialog) UpdateTagDialog()
-                TextField(
+                OutlinedTextField(
                     keyboardOptions= KeyboardOptions(
                         keyboardType= KeyboardType.Email,
                         imeAction = ImeAction.Done
@@ -251,11 +263,14 @@ fun DocumentEditScreen(
                     },
                     value = vm.newTag,
                     onValueChange = { vm.newTag = it },
+                    label = {
+                        Text(text = stringResource(id = R.string.new_tag))
+                    }
                 )
                 Button(onClick = {
                     vm.addNewTag()
                 }) {
-                    Text(text = stringResource(id = R.string.create_tag))
+                    Text(text = stringResource(id = R.string.add_tag))
                 }
 
 
@@ -298,9 +313,9 @@ fun UpdateTagDialog(){
     val vm: DocumentEditScreenViewModel = viewModel()
 
     AlertDialog(onDismissRequest = { vm.showTagUpdateDialog = false },
-    title = {Text(text = stringResource(id = R.string.update_tag) + ": " + vm.editTag)},
+    title = {Text(text = stringResource(id = R.string.update_tag))},
     text = {
-        TextField(
+        OutlinedTextField(
             keyboardOptions= KeyboardOptions(
                 keyboardType= KeyboardType.Email,
                 imeAction = ImeAction.Done
@@ -310,6 +325,9 @@ fun UpdateTagDialog(){
             },
             value = vm.replacementTag,
             onValueChange = { vm.replacementTag = it },
+            label = {
+                Text(text = stringResource(id = R.string.previous_name) + ": " + vm.editTag)
+            }
         )
         },
         confirmButton = {

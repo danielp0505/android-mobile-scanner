@@ -26,4 +26,6 @@
     <string name="login">Einloggen</string>
     <string name="logout">Ausloggen</string>
     <string name="cancel">Abbrechen</string>
+    <string name="new_tag">Neuer Tag</string>
+    <string name="previous_name">Vorheriger Name</string>
 </resources>
