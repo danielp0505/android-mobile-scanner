@@ -22,29 +22,37 @@ import coil.compose.AsyncImage
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.R
+import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
+import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
 import kotlinx.coroutines.launch
 
 class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
     val dao = AppDatabase.getDb(app).documentDao()
     var document by mutableStateOf(Document())
-    var images by mutableStateOf(listOf<Uri>())
+    var images = mutableStateListOf<Uri>()
 
-    fun initDocument(documentId: Long) {
-        viewModelScope.launch {
-            document = dao.findDocumentById(documentId)
-            images = dao
-                .getDocumentWithImages(documentId)
-                .images
-                .map { it.uri!!.toUri() }
+    fun initDocument(documentUID: String) {
+        runWithDocumentShapshot(documentUID){ documentSnapshot ->
+            val title = documentSnapshot.get("title")
+            document =
+                when(title) {
+                    is String ->
+                        Document(title = title as String?, uri = documentSnapshot.reference.id)
+                    else -> Document(uri = documentSnapshot.reference.id)
+                }
+            images = images.also { it.clear() }
+            forEachFirebaseImage(documentSnapshot.reference.id) { uri ->
+                images = images.also { it.add(uri); it.sort() }
+            }
         }
     }
 }
 
 @Composable
 fun DocumentViewScreen(
-    documentId: Long,
+    documentId: String,
     navigateUp: () -> Unit,
-    editDocument: (Long) -> Unit
+    editDocument: (String) -> Unit
 ) {
     val vm: DocumentViewScreenViewModel = viewModel()
     vm.initDocument(documentId)

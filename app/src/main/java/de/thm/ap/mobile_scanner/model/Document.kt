@@ -8,6 +8,9 @@ import java.util.UUID
 data class Document(
   @PrimaryKey
   var documentId: Long? = null,
-  var uuid: String = UUID.randomUUID().toString(),
+  /**
+   * URI used for Firebase Firestore reference path
+   */
+  var uri: String? = null,
   var title: String? = null,
 )

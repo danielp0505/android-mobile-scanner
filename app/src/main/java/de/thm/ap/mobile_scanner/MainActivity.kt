@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -18,22 +19,67 @@ import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.FirebaseAuthUIActivityResultContract
 import com.firebase.ui.auth.data.model.FirebaseAuthUIAuthenticationResult
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.*
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentViewScreen
 import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
 import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
 import de.thm.ap.mobile_scanner.ui.theme.MobilescannerTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 
 class MainActivity : ComponentActivity() {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val firestore_db: FirebaseFirestore = Firebase.firestore
+
     private val signInLauncher = registerForActivityResult(
         FirebaseAuthUIActivityResultContract()
     ) { result: FirebaseAuthUIAuthenticationResult? ->
         Log.d("AUTH", "USER: " + auth.currentUser)
+        handleUserDocument()
+    }
+    /**
+     * Function needs to be run after sign in and at startup
+     */
+    private fun handleUserDocument(){
+        this.lifecycleScope.launch(Dispatchers.IO) {
+            if (auth.currentUser == null) return@launch
+
+            val user = hashMapOf(
+                "uid" to auth.currentUser!!.uid,
+                "name" to auth.currentUser!!.displayName
+            )
+            firestore_db
+                .collection("users")
+                .whereEqualTo("uid", auth.currentUser!!.uid)
+                .get()
+                .addOnSuccessListener { querySnapshot: QuerySnapshot ->
+                    when {
+                        // user doasn't exist
+                        querySnapshot.isEmpty -> {
+                            firestore_db.collection("users").add(user)
+                                .addOnSuccessListener {
+                                    ReferenceCollection.userDocReference = it
+                                }
+                        }
+                        //user exists
+                        else -> {
+                            querySnapshot.forEach { documentSnapshot: QueryDocumentSnapshot ->
+                                if (documentSnapshot.get("uid") == auth.currentUser!!.uid) {
+                                    ReferenceCollection.userDocReference = documentSnapshot.reference
+                                }
+                            }
+                        }
+                    }
+                }
+        }
     }
 
-     private fun startSignIn() {
+    private fun startSignIn() {
          Log.d("AUTH", "LOGIN START")
         val signInIntent = AuthUI.getInstance()
             .createSignInIntentBuilder()
@@ -57,7 +103,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        handleUserDocument()
 
         setContent {
             MobilescannerTheme {
@@ -74,9 +120,11 @@ class MainActivity : ComponentActivity() {
                                 openTagManagement = {
                                     navController.navigate("tagManagement")
                                 },
-                                addDocument = {navController.navigate("documentEditScreen")},
-                                editDocument = { documentId: Long ->
-                                    navController.navigate("documentEditScreen/${documentId}")},
+                                addDocument = {
+                                        navController.navigate("documentEditScreen")
+                                              },
+                                editDocument = { documentUID: String ->
+                                    navController.navigate("documentEditScreen/${documentUID}")},
                                 login = { startSignIn() },
                                 logout = { signOut() }
                             )
@@ -90,21 +138,21 @@ class MainActivity : ComponentActivity() {
                             DocumentEditScreen(navController = navController, null)
                         }
                         composable(
-                            "documentEditScreen/{documentId}",
-                            arguments = listOf(navArgument("documentId"){type = NavType.LongType})
+                            "documentEditScreen/{documentUID}",
+                            arguments = listOf(navArgument("documentUID"){type = NavType.StringType})
                         ) { backStackEntry: NavBackStackEntry ->
-                            val id = backStackEntry.arguments?.getLong("documentId")
-                            DocumentEditScreen(navController = navController, id)
+                            val uid = backStackEntry.arguments?.getString("documentUID")
+                            DocumentEditScreen(navController = navController, uid)
                         }
                         composable(
                             "documentViewScreen/{documentId}",
-                            arguments = listOf(navArgument("documentId"){type = NavType.LongType})
+                            arguments = listOf(navArgument("documentId"){type = NavType.StringType})
                         ) { backStackEntry: NavBackStackEntry ->
-                            val id = backStackEntry.arguments?.getLong("documentId")!!
+                            val id = backStackEntry.arguments?.getString("documentId")!!
                             DocumentViewScreen(
                                 id,
                                 { navController.navigateUp() },
-                                editDocument = { documentId: Long ->
+                                editDocument = { documentId ->
                                     navController.navigate("documentEditScreen/${documentId}")
                                 },
                             )

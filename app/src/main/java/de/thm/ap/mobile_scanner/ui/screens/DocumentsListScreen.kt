@@ -21,7 +21,6 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -36,13 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ListenerRegistration
 import de.thm.ap.mobile_scanner.R
-import de.thm.ap.mobile_scanner.data.AppDatabase
-import de.thm.ap.mobile_scanner.data.DocumentDAO
+import de.thm.ap.mobile_scanner.data.*
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.DocumentTagRelation
 import de.thm.ap.mobile_scanner.model.Tag
@@ -59,27 +57,43 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     var searchString by mutableStateOf("")
+
+    /*
     val documentsWithTags: LiveData<List<DocumentDAO.DocumentWithTags>> =
         docDAO.findAllDocumentsWithTagsSync()
-
+    */
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
 
     val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
+    var snapshotListener: ListenerRegistration? = null
+    var firestoreDocs: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
+
     fun deleteDocument(document: Document) {
+        document.uri?.let {
+            deleteDocumentAndImages(it)
+        }
+        /*
         viewModelScope.launch(Dispatchers.IO) {
             docDAO.delete(document)
-        }
+        }*/
     }
 
     fun deleteSelection() {
+        selectedDocuments.forEach { document ->
+            deleteDocument(document)
+        }
+        exitContextualMode()
+        /* Local deletion
         viewModelScope.launch(Dispatchers.IO) {
             docDAO.deleteDocumentList(selectedDocuments)
             launch(Dispatchers.Main) {
                 exitContextualMode()
             }
+
         }
+         */
     }
 
     fun toggleWithSelection(document: Document) {
@@ -99,6 +113,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         contextualMode = false
         selectedDocuments.clear()
     }
+
     fun shareDocument(context: Context, documentId: Long) {
         viewModelScope.launch {
             val images = docDAO.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }
@@ -121,6 +136,24 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun initQueries() {
+        ReferenceCollection.userDocReference?.collection("documents")
+            ?.get()
+            ?.addOnSuccessListener { querySnapshot ->
+                if (querySnapshot != null) {
+                    firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                }
+            }
+        if (snapshotListener == null) {
+            snapshotListener = ReferenceCollection.userDocReference
+                ?.collection("documents")
+                ?.addSnapshotListener { querySnapshot, error ->
+                    if (error == null && querySnapshot != null) {
+                        firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                    }
+                }
+        }
+    }
 }
 
 @Composable
@@ -213,16 +246,20 @@ fun MyTopAppBar(
 
 @Composable
 fun DocumentsListScreen(
-    openDocument: (id: Long) -> Unit,
+    openDocument: (id: String) -> Unit,
     openTagManagement: () -> Unit,
     addDocument: () -> Unit,
-    editDocument: (Long) -> Unit,
+    editDocument: (String) -> Unit,
     login: () -> Unit,
     logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val context = LocalContext.current
-    val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+    //val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+    if(ReferenceCollection.userDocReference != null){
+        vm.initQueries()
+    }
+    val documentsWithTags = vm.firestoreDocs
 
     Scaffold(topBar = { MyTopAppBar(openTagManagement) }, floatingActionButton = {
         AddDocumentButton({ addDocument() })
@@ -262,10 +299,10 @@ fun DocumentsListScreen(
                 }, key = { it.document.documentId!! }) { documentWithTags ->
                     DocumentListItem(document = documentWithTags.document,
                         tags = documentWithTags.tags,
-                        editDocument = {editDocument(documentWithTags.document.documentId!!)},
-						openDocument = { openDocument(documentWithTags.document.documentId!!) },
+                        editDocument = {editDocument(documentWithTags.document.uri!!)},
+						openDocument = { openDocument(documentWithTags.document.uri!!) },
                         shareDocument = {vm.shareDocument(context, documentWithTags.document.documentId!!)}
-						)
+                    )
                     Divider(color = Color.Gray)
                 }
             }
@@ -367,3 +404,4 @@ fun TagButton(tag: Tag, onClick: () -> Unit) {
         modifier = Modifier.height(28.dp)
     )
 }
+

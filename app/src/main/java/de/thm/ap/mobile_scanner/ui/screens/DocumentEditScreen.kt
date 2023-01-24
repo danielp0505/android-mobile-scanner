@@ -10,19 +10,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.annotation.CallSuper
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -34,21 +32,32 @@ import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.StorageReference
+import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.*
+import de.thm.ap.mobile_scanner.data.ReferenceCollection
+import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
+import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
+import de.thm.ap.mobile_scanner.model.Document
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -57,48 +66,116 @@ import kotlin.math.roundToInt
 
 
 class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
-    val dao = AppDatabase.getDb(app).documentDao()
-    var document: Document by mutableStateOf(Document())
-    fun isEditMode() = document.documentId != null
-    val tags: LiveData<List<Tag>> = dao.findAllTagsSync()
-    var images = mutableStateListOf<Uri>()
-    var selectedTags: MutableList<Tag> = mutableStateListOf()
 
-    fun initDocument(documentId: Long?) {
-        if (documentId == null) return
-        viewModelScope.launch {
-            document = dao.findDocumentById(documentId)
-            images = dao.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }
-                .toMutableStateList()
-            selectedTags = dao.getDocumentWithTags(documentId).tags.toMutableStateList()
+    var document: Document by mutableStateOf(Document())
+    var isEditMode by mutableStateOf(false)
+    var images = mutableStateListOf<Uri>()
+    var documentTags = mutableStateListOf<String>()
+
+    var editTag: String by mutableStateOf(String())
+    var replacementTag: String by mutableStateOf(String())
+    var showTagUpdateDialog: Boolean by mutableStateOf(false)
+    var newTag: String by mutableStateOf(String())
+
+    val firebaseStorage: StorageReference? =
+        FirebaseAuth.getInstance().currentUser?.let {
+            Firebase.storage
+                .getReference(it.uid)
+        }
+
+
+
+    //this variable is necessary to avoid a race condition
+    var initialized = false
+    fun initDocument(documentUID: String?) {
+        if (documentUID == null) return
+        if (!images.isEmpty()) return
+        if (initialized) return
+
+        initialized = true
+        isEditMode = true
+        runWithDocumentShapshot(documentUID){ documentSnapshot ->
+            val title = documentSnapshot.get("title")
+            document =
+                when(title) {
+                    is String ->
+                        Document(title = title as String?, uri = documentSnapshot.reference.id)
+                    else -> Document(uri = documentSnapshot.reference.id)
+                }
+
+            when (val tags = documentSnapshot.get("tags")) {
+                is List<*> -> tags.forEach { documentTags.add(it.toString()) }
+            }
+
+            forEachFirebaseImage(documentSnapshot.reference.id) {
+                images.add(it)
+                images.sort()
+            }
         }
     }
 
-    fun saveDocument() {
-        if (isEditMode()) {
-            viewModelScope.launch {
-                dao.update(document)
-                dao.getDocumentWithTags(document.documentId!!).tags.forEach {
-                    dao.delete(DocumentTagRelation(document.documentId!!, it.tagId!!))
-                }
-                selectedTags.forEach { dao.persist(document.documentId!!, it.tagId!!) }
+    fun updateDocument(){
+        //Id is stored in uri
+        if(document.uri == null) return
 
-                //delete all images assosiated with this document and recreate them.
-                dao.getDocumentWithImages(document.documentId!!).images.forEach {
-                    dao.delete(it)
-                    dao.delete(DocumentImageRelation(document.documentId!!, it.imageId!!))
-                }
-                val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
-                images_ids.forEach { dao.persist(DocumentImageRelation(document.documentId!!, it)) }
-            }
-        } else {
-            viewModelScope.launch {
-                val documentId = dao.persist(document)
-                selectedTags.forEach { dao.persist(documentId, it.tagId!!) }
-                val images_ids = images.map { dao.persist(Image(uri = it.toString())) }
-                images_ids.forEach { dao.persist(DocumentImageRelation(documentId, it)) }
-            }
+        val id = document.uri!!
+        val folderRef = firebaseStorage?.child(id)
+
+        images.forEachIndexed{index, image ->
+            folderRef?.child(index.toString())?.putFile(image)
         }
+        var updatedDoc: HashMap<String, Any?> = hashMapOf()
+        if (!document.title.isNullOrEmpty()) {
+            updatedDoc["title"] = document.title
+        }
+        if (!documentTags.isEmpty()) {
+            updatedDoc ["tags"] = documentTags as List<String>
+        }
+
+        ReferenceCollection.userDocReference
+            ?.collection("documents")
+            ?.document(id)
+            ?.set(updatedDoc)
+    }
+    fun saveDocument() {
+        if (isEditMode) return updateDocument()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            var newDoc: HashMap<String, Any?> = hashMapOf()
+            if (!documentTags.isEmpty()){
+                newDoc["tags"] = documentTags as List<String>
+            }
+            if (!document.title.isNullOrEmpty()){
+                newDoc["title"] = document.title
+            }
+            ReferenceCollection.userDocReference?.collection("documents")?.add(newDoc)
+                ?.addOnSuccessListener { documentReference ->
+                    if (documentReference == null) return@addOnSuccessListener
+                    val ref = firebaseStorage?.child(documentReference.id)
+                    var i: Long = 0
+                    images.forEach { uri ->
+                        ref?.child(i.toString())?.putFile(uri)
+                        i++
+                    }
+                }
+        }
+    }
+
+    fun addNewTag(){
+        if (newTag.isEmpty()) return
+
+        documentTags.add(newTag)
+        newTag = ""
+    }
+
+    fun updateTag(){
+        if (replacementTag.isEmpty() || replacementTag == editTag) return
+
+        val originalIndex = documentTags.indexOf(editTag)
+        documentTags[originalIndex] = replacementTag
+        editTag = ""
+        replacementTag = ""
+        showTagUpdateDialog = false
     }
 }
 
@@ -125,33 +202,13 @@ open class TakePicture : ActivityResultContract<Uri, Uri?>() {
 
 
 @Composable
-fun DropDownItemMenuWithCheckbox(
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    DropdownMenuItem(
-        onClick = { onClick() }, modifier = modifier
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = selected, onCheckedChange = { onClick() })
-            content()
-        }
-    }
-
-}
-
-@Composable
 fun DocumentEditScreen(
     navController: NavController,
-    documentId: Long?,
+    documentUID: String?
 ) {
     val vm: DocumentEditScreenViewModel = viewModel()
-    vm.initDocument(documentId)
-    val tags by vm.tags.observeAsState()
-
-    var tagsExpanded by remember { mutableStateOf(false) }
+    val tags = vm.documentTags
+    vm.initDocument(documentUID)
 
     Scaffold(
         modifier = Modifier.fillMaxWidth(),
@@ -164,7 +221,7 @@ fun DocumentEditScreen(
                     )
                 }
             },
-                title = { Text(text = stringResource(id = if (vm.isEditMode()) R.string.edit_document else R.string.create_document)) })
+                title = { Text(text = stringResource(id = if (vm.isEditMode) R.string.edit_document else R.string.create_document)) })
         },
         content = { padding ->
 
@@ -175,57 +232,57 @@ fun DocumentEditScreen(
                     .padding(padding)
             ) {
                 ImageArea(vm.images)
+
+                Divider(modifier = Modifier.padding(8.dp))
+
                 OutlinedTextField(
                     value = vm.document.title ?: "",
                     onValueChange = { vm.document = vm.document.copy(title = it) },
                     singleLine = true,
                     label = {
                         Text(text = stringResource(id = R.string.document_title))
-                    },
-                )
-                Box {
-                    OutlinedTextField(
-                        modifier = Modifier.clickable { tagsExpanded = true },
-                        enabled = false,
-                        value = vm.selectedTags.mapNotNull { it.name }.sorted().joinToString(),
-                        onValueChange = {},
-                        label = {
-                            Text(text = stringResource(id = R.string.tags))
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { tagsExpanded = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = stringResource(id = R.string.select_tags)
-                                )
-                            }
-                        }
+                    })
 
-                    )
-                    DropdownMenu(
-                        expanded = tagsExpanded,
-                        onDismissRequest = { tagsExpanded = false }) {
-                        tags?.filter { it.name != null }?.forEach { tag ->
-                            DropDownItemMenuWithCheckbox(
-                                modifier = Modifier.padding(padding),
-                                selected = vm.selectedTags.contains(tag),
-                                onClick = {
-//                  vm.selectedTags = vm.selectedTags.also { if (it.contains(tag)) it.remove(tag) else it.add(tag) }
-                                    vm.selectedTags.apply {
-                                        if (contains(tag)) remove(tag) else add(
-                                            tag
-                                        )
-                                    }
-                                }) {
-                                Text(text = tag.name!!)
-                            }
-                        }
+                    Divider(modifier = Modifier.padding(12.dp))
+
+                if(vm.showTagUpdateDialog) UpdateTagDialog()
+                OutlinedTextField(
+                    keyboardOptions= KeyboardOptions(
+                        keyboardType= KeyboardType.Email,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions =  KeyboardActions {
+                        vm.addNewTag()
+                    },
+                    value = vm.newTag,
+                    onValueChange = { vm.newTag = it },
+                    label = {
+                        Text(text = stringResource(id = R.string.new_tag))
                     }
+                )
+                Button(onClick = {
+                    vm.addNewTag()
+                }) {
+                    Text(text = stringResource(id = R.string.add_tag))
                 }
 
+
+                val lazyListState = rememberLazyListState()
+                LazyColumn(state = lazyListState) {
+                    items(
+                        items = tags,
+                        key = { it }) { tag ->
+                        TagListItem(tag = tag,
+                            onSelection = {
+                                vm.editTag = it
+                                vm.replacementTag = it
+                                vm.showTagUpdateDialog = true
+                            },
+                            onDelete = { vm.documentTags.remove(it)})
+                        Divider(modifier = Modifier.fillMaxWidth())
+                    }
+                }
             }
-
-
         },
         floatingActionButton = {
 
@@ -242,16 +299,51 @@ fun DocumentEditScreen(
             }
         }
     )
-
-
 }
 
 @Composable
+fun UpdateTagDialog(){
+    val vm: DocumentEditScreenViewModel = viewModel()
+
+    AlertDialog(onDismissRequest = { vm.showTagUpdateDialog = false },
+    title = {Text(text = stringResource(id = R.string.update_tag))},
+    text = {
+        OutlinedTextField(
+            keyboardOptions= KeyboardOptions(
+                keyboardType= KeyboardType.Email,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions =  KeyboardActions {
+                vm.updateTag()
+            },
+            value = vm.replacementTag,
+            onValueChange = { vm.replacementTag = it },
+            label = {
+                Text(text = stringResource(id = R.string.previous_name) + ": " + vm.editTag)
+            }
+        )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    vm.updateTag()
+                }
+            ) { Text(stringResource(id = R.string.update_tag)) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = { vm.showTagUpdateDialog = false }
+            ) { Text(stringResource(id = R.string.cancel)) }
+        })
+}
+
+
+@Composable
 fun ImageBox(
-  uri: Uri,
+  uri: Uri?,
   contentDescription: String,
   onRelease: (Float, Float) -> Unit,
-  onGloballyPositioned: (LayoutCoordinates) -> Unit
+  onGloballyPositioned: (LayoutCoordinates) -> Unit,
 ) {
   val vm: DocumentEditScreenViewModel = viewModel()
   var offsetX by remember { mutableStateOf(0f) }
@@ -350,7 +442,7 @@ private fun ImageArea(
 ) {
   val context = LocalContext.current
     val vm: DocumentEditScreenViewModel = viewModel()
-    val baseDir = File(context.filesDir, vm.document.uuid)
+    val baseDir = File(context.filesDir, UUID.randomUUID().toString())
     var imagePositions = remember { arrayOfNulls<LayoutCoordinates>(100) }
     val getImageFromGalleryLauncher = rememberLauncherForActivityResult(contract = GetContent()) {
         if (it == null) return@rememberLauncherForActivityResult
@@ -416,3 +508,22 @@ private fun ImageArea(
     }
 }
 
+
+@Composable
+fun TagListItem(tag: String, onSelection: (tag: String) -> Unit, onDelete: (tag: String) -> Unit){
+    val elementPadding = 12.dp
+    val rowBaseModifier = Modifier.fillMaxWidth()
+    Row(horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = rowBaseModifier) {
+        Button(onClick = { onSelection(tag) },
+            Modifier
+                .padding(elementPadding)
+                .fillMaxWidth(0.8f)) {
+            Text(text = tag)
+        }
+
+        IconButton(onClick = { onDelete(tag) }, modifier = Modifier.padding(elementPadding)) {
+            Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(id = R.string.delete) )
+        }
+    }
+}
