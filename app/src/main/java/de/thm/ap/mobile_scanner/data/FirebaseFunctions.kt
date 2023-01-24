@@ -1,5 +1,6 @@
 package de.thm.ap.mobile_scanner.data
 
+import android.content.Context
 import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -9,7 +10,14 @@ import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.Image
 import de.thm.ap.mobile_scanner.model.Tag
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.util.*
+import kotlin.coroutines.CoroutineContext
 
 fun runWithDocumentShapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
     ReferenceCollection.userDocReference
@@ -22,15 +30,27 @@ val firebaseStorage: StorageReference? =
         Firebase.storage
             .getReference(it.uid)
     }
-fun forEachFirebaseImage(documentUri: String, f: (Uri) -> Unit){
-    firebaseStorage?.child(documentUri)
-        ?.listAll()?.addOnSuccessListener { listResult ->
-            listResult.items.forEach { storageReference ->
-                storageReference.downloadUrl.addOnSuccessListener(f)
-            }
-        }
 
+fun forEachFirebaseImage(context: CoroutineScope, documentUri: String, f: (Image) -> Unit){
+    context.launch(Dispatchers.IO) {
+        ReferenceCollection.userDocReference
+            ?.collection("documents")
+            ?.document(documentUri)?.get()?.await()?.let {
+                val images = it.get("images")
+                if (!(images is List<*>)) return@let
+
+                images.map {
+                    val uuid = UUID.fromString(it.toString())
+                    val uri = firebaseStorage?.child(uuid.toString())?.downloadUrl?.await()
+
+                    Image(uuid = UUID.fromString(it.toString()), uri =uri.toString())
+                }.forEach(f)
+            }
+
+    }
 }
+
+
 fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableList<DocumentDAO.DocumentWithTags> {
     val docWithTagsList: MutableList<DocumentDAO.DocumentWithTags> = mutableListOf()
     var increment: Long = 0
