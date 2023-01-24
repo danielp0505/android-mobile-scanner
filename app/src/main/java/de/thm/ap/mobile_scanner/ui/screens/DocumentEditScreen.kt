@@ -44,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
@@ -52,6 +53,7 @@ import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.model.Document
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.io.File
 import java.util.*
 import kotlin.math.roundToInt
@@ -69,120 +71,120 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
     var showTagUpdateDialog: Boolean by mutableStateOf(false)
     var newTag: String by mutableStateOf(String())
 
-    val storage: StorageReference? =
+    val firebaseStorage: StorageReference? =
         FirebaseAuth.getInstance().currentUser?.let {
             Firebase.storage
                 .getReference(it.uid)
         }
 
-    //this variable is necessary to avoid a race condition
-    var uninitialized = true
-    fun initDocument(documentUID: String?) {
-        if (documentUID != null && images.isEmpty() && uninitialized) {
-            uninitialized = false
-            isEditMode = true
-            ReferenceCollection.userDocReference
-                ?.collection("documents")
-                ?.document(documentUID)
-                ?.get()?.addOnSuccessListener { documentSnapshot ->
-                    document = Document(uri = documentSnapshot.reference.id)
-                    val title = documentSnapshot.get("title")
-                    if (title is String) document =
-                        Document(title = title, uri = documentSnapshot.reference.id)
-                    val tags = documentSnapshot.get("tags")
-
-                    val tagList: MutableList<String> =
-                        if (tags is List<*>) tags.map { tag -> tag.toString() } as MutableList<String>
-                        else mutableListOf()
-                    if (tagList.isNotEmpty()) documentTags.addAll(tagList)
-
-                    storage?.child(documentSnapshot.reference.id)
-                        ?.listAll()?.addOnSuccessListener { listResult ->
-                            val temporaryList: MutableList<Uri> = mutableListOf()
-                            listResult.items.forEach { storageReference ->
-                                storageReference.downloadUrl.addOnSuccessListener { uri ->
-                                    //temporary list to sort by uri name
-                                    temporaryList.add(uri)
-                                    if(temporaryList.size == listResult.items.size){
-                                        temporaryList.sort()
-                                        temporaryList.forEach{imageUri -> images.add(imageUri)}
-                                    }
-                                }
-                            }
-                        }
+    private fun runWithDocumentShapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
+        ReferenceCollection.userDocReference
+            ?.collection("documents")
+            ?.document(documentUID)
+            ?.get()?.addOnSuccessListener(f)
+    }
+    private fun forEachFirebaseImage(documentUri: String, f: (Uri) -> Unit){
+        firebaseStorage?.child(documentUri)
+            ?.listAll()?.addOnSuccessListener { listResult ->
+                listResult.items.forEach { storageReference ->
+                    storageReference.downloadUrl.addOnSuccessListener(f)
                 }
+            }
+
+    }
+
+
+    //this variable is necessary to avoid a race condition
+    var initialized = false
+    fun initDocument(documentUID: String?) {
+        if (documentUID == null) return
+        if (!images.isEmpty()) return
+        if (initialized) return
+
+        initialized = true
+        isEditMode = true
+        runWithDocumentShapshot(documentUID){ documentSnapshot ->
+            val title = documentSnapshot.get("title")
+            document =
+                when(title) {
+                    is String ->
+                        Document(title = title as String?, uri = documentSnapshot.reference.id)
+                    else -> Document(uri = documentSnapshot.reference.id)
+                }
+
+            when (val tags = documentSnapshot.get("tags")) {
+                is List<*> -> tags.forEach { documentTags.add(it.toString()) }
+            }
+
+            forEachFirebaseImage(documentSnapshot.reference.id) {
+                images.add(it)
+                images.sort()
+            }
         }
     }
-    
+
+    fun updateDocument(){
+        //Id is stored in uri
+        if(document.uri == null) return
+
+        val id = document.uri!!
+        val folderRef = firebaseStorage?.child(id)
+
+        images.forEachIndexed{index, image ->
+            folderRef?.child(index.toString())?.putFile(image)
+        }
+        var updatedDoc: HashMap<String, Any?> = hashMapOf()
+        if (!document.title.isNullOrEmpty()) {
+            updatedDoc["title"] = document.title
+        }
+        if (!documentTags.isEmpty()) {
+            updatedDoc ["tags"] = documentTags as List<String>
+        }
+
+        ReferenceCollection.userDocReference
+            ?.collection("documents")
+            ?.document(id)
+            ?.set(updatedDoc)
+    }
     fun saveDocument() {
-        if (isEditMode) {
-            //Id is stored in uri
-            document.uri?.let { id ->
-                val folderRef = storage?.child(id)
-                images.forEachIndexed{index, image ->
-                    folderRef?.child(index.toString())?.putFile(image)
-                }
-                var updatedDoc: HashMap<String, Any?>?
-                if (documentTags.isEmpty()) {
-                    updatedDoc = hashMapOf(
-                        "title" to document.title
-                    )
-                } else {
-                    updatedDoc = hashMapOf(
-                        "title" to document.title,
-                        "tags" to documentTags as List<String>
-                    )
-                }
-                ReferenceCollection.userDocReference
-                    ?.collection("documents")
-                    ?.document(id)
-                    ?.set(updatedDoc)
+        if (isEditMode) return updateDocument()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            var newDoc: HashMap<String, Any?> = hashMapOf()
+            if (!documentTags.isEmpty()){
+                newDoc["tags"] = documentTags as List<String>
             }
-        } else {
-            viewModelScope.launch(Dispatchers.IO) {
-                var newDoc: HashMap<String, Any?>?
-                if (documentTags.isEmpty()) {
-                    newDoc = hashMapOf(
-                        "title" to document.title
-                    )
-                } else {
-                    newDoc = hashMapOf(
-                        "title" to document.title,
-                        "tags" to documentTags as List<String>
-                    )
-                }
-                ReferenceCollection.userDocReference
-                    ?.collection("documents")
-                    ?.add(newDoc)
-                    ?.addOnSuccessListener { documentReference ->
-                        if (documentReference != null) {
-                            val ref = storage?.child(documentReference.id)
-                            var i: Long = 0
-                            images.forEach { uri ->
-                                ref?.child(i.toString())?.putFile(uri)
-                                i++
-                            }
-                        }
+            if (!document.title.isNullOrEmpty()){
+                newDoc["title"] = document.title
+            }
+            ReferenceCollection.userDocReference?.collection("documents")?.add(newDoc)
+                ?.addOnSuccessListener { documentReference ->
+                    if (documentReference == null) return@addOnSuccessListener
+                    val ref = firebaseStorage?.child(documentReference.id)
+                    var i: Long = 0
+                    images.forEach { uri ->
+                        ref?.child(i.toString())?.putFile(uri)
+                        i++
                     }
-            }
+                }
         }
     }
 
     fun addNewTag(){
-        if (newTag != ""){
-            documentTags.add(newTag)
-            newTag = ""
-        }
+        if (newTag.isEmpty()) return
+
+        documentTags.add(newTag)
+        newTag = ""
     }
 
     fun updateTag(){
-        if(replacementTag != "" && replacementTag != editTag){
+        if (replacementTag.isEmpty() || replacementTag == editTag) return
+
         val originalIndex = documentTags.indexOf(editTag)
         documentTags[originalIndex] = replacementTag
         editTag = ""
         replacementTag = ""
         showTagUpdateDialog = false
-        }
     }
 }
 
