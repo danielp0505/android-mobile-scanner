@@ -1,15 +1,19 @@
 package de.thm.ap.mobile_scanner.data
 
-import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.QuerySnapshot
-import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.Image
 import de.thm.ap.mobile_scanner.model.Tag
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.util.*
 
 fun runWithDocumentShapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
     ReferenceCollection.userDocReference
@@ -22,15 +26,27 @@ val firebaseStorage: StorageReference? =
         Firebase.storage
             .getReference(it.uid)
     }
-fun forEachFirebaseImage(documentUri: String, f: (Uri) -> Unit){
-    firebaseStorage?.child(documentUri)
-        ?.listAll()?.addOnSuccessListener { listResult ->
-            listResult.items.forEach { storageReference ->
-                storageReference.downloadUrl.addOnSuccessListener(f)
-            }
-        }
 
+fun forEachFirebaseImage(context: CoroutineScope, documentUri: String, f: (Image) -> Unit){
+    context.launch(Dispatchers.IO) {
+        ReferenceCollection.userDocReference
+            ?.collection("documents")
+            ?.document(documentUri)?.get()?.await()?.let {
+                val images = it.get("images")
+                if (!(images is List<*>)) return@let
+
+                images.map {
+                    val uuid = UUID.fromString(it.toString())
+                    val uri = firebaseStorage?.child(uuid.toString())?.downloadUrl?.await()
+
+                    Image(uuid = UUID.fromString(it.toString()), uri =uri.toString())
+                }.forEach(f)
+            }
+
+    }
 }
+
+
 fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableList<DocumentDAO.DocumentWithTags> {
     val docWithTagsList: MutableList<DocumentDAO.DocumentWithTags> = mutableListOf()
     var increment: Long = 0
@@ -55,10 +71,9 @@ fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableLis
  * Delete document and associated images given a valid document UID of the user.
  */
 
-fun deleteDocumentAndImages(UID: String){
+fun deleteDocumentAndImages(UID: String, scope: CoroutineScope) {
     //Document Path Format: users/{userUID}/documents/{documentUID}
-    //Image Storage: {userUID}/{documentUID}/{imageNumber}
-    val firestore = Firebase.firestore
+    //Image Storage: {userUID}/{imageUUID}
     val storage: StorageReference? =
     FirebaseAuth.getInstance().currentUser?.let {
         Firebase.storage
@@ -66,21 +81,21 @@ fun deleteDocumentAndImages(UID: String){
     }
     //delete images first, if something goes wrong the user can retry deleting the document
     ReferenceCollection.userDocReference?.collection("documents")?.document(UID).let { docRef ->
-        if(docRef != null){
-        storage?.child(docRef.id)
-                ?.listAll()?.addOnSuccessListener { listResult ->
-                var deletedItems = 0
-                val totalItems = listResult.items.size
-                listResult.items.forEach {
-                    it.delete().addOnSuccessListener {
-                        deletedItems++
-                        if (deletedItems == totalItems) {
-                            docRef.delete().addOnSuccessListener {
-                            }
+        docRef?.get()?.addOnSuccessListener { documentSnapshot ->
+            val imageField = documentSnapshot.get("images")
+
+            if(imageField == null){
+                docRef.delete()
+            } else
+                if(imageField is List<*>) {
+                    val imageUIDs: List<String> = imageField.map{it.toString()}
+                    scope.launch(Dispatchers.IO) {
+                        imageUIDs.forEach { imageUID ->
+                            storage?.child(imageUID)?.delete()?.await()
                         }
+                        docRef.delete()
                     }
-                }
             }
-            }
+        }
     }
 }

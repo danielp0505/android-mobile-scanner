@@ -4,13 +4,9 @@ import android.app.Application
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,12 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -42,11 +35,8 @@ import com.google.firebase.firestore.ListenerRegistration
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.*
 import de.thm.ap.mobile_scanner.model.Document
-import de.thm.ap.mobile_scanner.model.DocumentTagRelation
 import de.thm.ap.mobile_scanner.model.Tag
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     private val docDAO: DocumentDAO = AppDatabase.getDb(app.baseContext).documentDao()
@@ -68,11 +58,11 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
     var snapshotListener: ListenerRegistration? = null
-    var firestoreDocs: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
+    var documents: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
 
     fun deleteDocument(document: Document) {
         document.uri?.let {
-            deleteDocumentAndImages(it)
+            deleteDocumentAndImages(it, viewModelScope)
         }
         /*
         viewModelScope.launch(Dispatchers.IO) {
@@ -129,7 +119,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(images))
 
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }.also {
                 context.startActivity(Intent.createChooser(it, "Dokument teilen"))
             }
@@ -141,7 +131,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
             ?.get()
             ?.addOnSuccessListener { querySnapshot ->
                 if (querySnapshot != null) {
-                    firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                    documents = convertQueryToDocumentWithTagsList(querySnapshot)
                 }
             }
         if (snapshotListener == null) {
@@ -149,7 +139,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
                 ?.collection("documents")
                 ?.addSnapshotListener { querySnapshot, error ->
                     if (error == null && querySnapshot != null) {
-                        firestoreDocs = convertQueryToDocumentWithTagsList(querySnapshot)
+                        documents = convertQueryToDocumentWithTagsList(querySnapshot)
                     }
                 }
         }
@@ -259,7 +249,7 @@ fun DocumentsListScreen(
     if(ReferenceCollection.userDocReference != null){
         vm.initQueries()
     }
-    val documentsWithTags = vm.firestoreDocs
+    val documentsWithTags = vm.documents
 
     Scaffold(topBar = { MyTopAppBar(openTagManagement) }, floatingActionButton = {
         AddDocumentButton({ addDocument() })
@@ -311,6 +301,7 @@ fun DocumentsListScreen(
 }
 
 private fun DocumentDAO.DocumentWithTags.matches(searchString: String): Boolean{
+    if (searchString.isEmpty()) return true
     if (document.title?.contains(searchString, ignoreCase = true) ?: false) return true
     if (tags.any { it.name?.contains(searchString, ignoreCase = true) ?:  false}) return true
     return false

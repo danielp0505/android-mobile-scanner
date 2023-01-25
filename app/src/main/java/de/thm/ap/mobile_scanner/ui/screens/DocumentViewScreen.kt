@@ -24,14 +24,18 @@ import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
 import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
+import de.thm.ap.mobile_scanner.model.Image
 import kotlinx.coroutines.launch
 
 class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
     val dao = AppDatabase.getDb(app).documentDao()
     var document by mutableStateOf(Document())
-    var images = mutableStateListOf<Uri>()
+    var images = mutableStateListOf<Image>()
 
+    var isInitialized = false
     fun initDocument(documentUID: String) {
+        if (isInitialized) return
+        isInitialized = true
         runWithDocumentShapshot(documentUID){ documentSnapshot ->
             val title = documentSnapshot.get("title")
             document =
@@ -40,9 +44,8 @@ class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
                         Document(title = title as String?, uri = documentSnapshot.reference.id)
                     else -> Document(uri = documentSnapshot.reference.id)
                 }
-            images = images.also { it.clear() }
-            forEachFirebaseImage(documentSnapshot.reference.id) { uri ->
-                images = images.also { it.add(uri); it.sort() }
+            forEachFirebaseImage(viewModelScope, documentSnapshot.reference.id) { image ->
+                images = images.also { it.add(image) }
             }
         }
     }
@@ -84,7 +87,7 @@ fun DocumentViewScreen(
             itemsIndexed(vm.images) { i, it ->
                 AsyncImage(
                     modifier = Modifier.fillMaxWidth(),
-                    model = it,
+                    model = it.uri,
                     contentDescription = "Page Nr. ${i}"
                 )
             }

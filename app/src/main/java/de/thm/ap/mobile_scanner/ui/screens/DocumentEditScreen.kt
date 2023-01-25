@@ -38,18 +38,17 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.R
-import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.*
 import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
@@ -57,7 +56,6 @@ import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
 import de.thm.ap.mobile_scanner.model.Document
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -69,7 +67,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
 
     var document: Document by mutableStateOf(Document())
     var isEditMode by mutableStateOf(false)
-    var images = mutableStateListOf<Uri>()
+    var images = mutableStateListOf<Image>()
     var documentTags = mutableStateListOf<String>()
 
     var editTag: String by mutableStateOf(String())
@@ -83,13 +81,14 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 .getReference(it.uid)
         }
 
-
+    //variable stores image UIDs present at initialization when editing a document
+    var initialImageUUIDs: MutableList<UUID> = mutableListOf()
 
     //this variable is necessary to avoid a race condition
     var initialized = false
     fun initDocument(documentUID: String?) {
         if (documentUID == null) return
-        if (!images.isEmpty()) return
+        if (images.isNotEmpty()) return
         if (initialized) return
 
         initialized = true
@@ -107,9 +106,9 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 is List<*> -> tags.forEach { documentTags.add(it.toString()) }
             }
 
-            forEachFirebaseImage(documentSnapshot.reference.id) {
+            forEachFirebaseImage(viewModelScope, documentSnapshot.reference.id) {
+                it.uuid?.let { uuid -> initialImageUUIDs.add(uuid) }
                 images.add(it)
-                images.sort()
             }
         }
     }
@@ -118,23 +117,39 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
         //Id is stored in uri
         if(document.uri == null) return
 
-        val id = document.uri!!
-        val folderRef = firebaseStorage?.child(id)
+        val folderRef = firebaseStorage
 
-        images.forEachIndexed{index, image ->
-            folderRef?.child(index.toString())?.putFile(image)
+        //Image Upload
+        val image_uuids = images.map{image ->
+            if(image.uuid ==null){
+                // Datei noch nicht im Firestore, muss hochladen
+                image.uuid = UUID.randomUUID()
+                folderRef?.child(image.uuid.toString())?.putFile(image.uri!!.toUri())
+            }
+            image.uuid
         }
+
+        val unusedImages: MutableList<UUID?> = mutableListOf()
+        unusedImages.addAll(initialImageUUIDs)
+        unusedImages.removeAll(image_uuids)
+        unusedImages.forEach { uuid ->
+            folderRef?.child(uuid.toString())?.delete()
+        }
+
         var updatedDoc: HashMap<String, Any?> = hashMapOf()
         if (!document.title.isNullOrEmpty()) {
             updatedDoc["title"] = document.title
         }
-        if (!documentTags.isEmpty()) {
+        if (documentTags.isNotEmpty()) {
             updatedDoc ["tags"] = documentTags as List<String>
+        }
+        if (image_uuids.isNotEmpty()) {
+            updatedDoc ["images"] = image_uuids.map{it.toString()}
         }
 
         ReferenceCollection.userDocReference
             ?.collection("documents")
-            ?.document(id)
+            ?.document(document.uri!!)
             ?.set(updatedDoc)
     }
     fun saveDocument() {
@@ -148,16 +163,15 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             if (!document.title.isNullOrEmpty()){
                 newDoc["title"] = document.title
             }
-            ReferenceCollection.userDocReference?.collection("documents")?.add(newDoc)
-                ?.addOnSuccessListener { documentReference ->
-                    if (documentReference == null) return@addOnSuccessListener
-                    val ref = firebaseStorage?.child(documentReference.id)
-                    var i: Long = 0
-                    images.forEach { uri ->
-                        ref?.child(i.toString())?.putFile(uri)
-                        i++
-                    }
-                }
+            newDoc["images"] = images.map {
+                val uuid = UUID.randomUUID().toString()
+                firebaseStorage?.child(uuid)?.putFile(it.uri!!.toUri())
+                uuid
+            }
+            ReferenceCollection.userDocReference
+                ?.collection("documents")
+                ?.document()
+                ?.set(newDoc)
         }
     }
 
@@ -340,7 +354,7 @@ fun UpdateTagDialog(){
 
 @Composable
 fun ImageBox(
-  uri: Uri?,
+  image: Image,
   contentDescription: String,
   onRelease: (Float, Float) -> Unit,
   onGloballyPositioned: (LayoutCoordinates) -> Unit,
@@ -377,12 +391,12 @@ fun ImageBox(
                   offsetY = 0f
               })
           },
-      model = uri,
+      model = image!!.uri,
       contentDescription = contentDescription,
     )
     if (!isDraged) {
       IconButton(
-        onClick = { vm.images.remove(uri) }, modifier = Modifier
+        onClick = { vm.images.remove(image) }, modifier = Modifier
               .size(32.dp)
               .align(Alignment.TopEnd)
       ) {
@@ -437,7 +451,7 @@ private fun Uri.copyTo(context: Context, dest: Uri) {
 
 @Composable
 private fun ImageArea(
-    images: MutableList<Uri>,
+    images: MutableList<Image>,
     modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -450,10 +464,10 @@ private fun ImageArea(
         val file = File(baseDir, "${images.size}.jpg")
         val uri = FileProvider.getUriForFile(context, "de.thm.fileprovider", file)
         it.copyTo(context, uri)
-        images.add(uri)
+        images.add(Image(uri = uri.toString()))
     }
     val getImageFromCameraLauncher = rememberLauncherForActivityResult(contract = TakePicture()) {
-        if (it != null) images.add(it)
+        if (it != null) images.add(Image(uri = it.toString()))
   }
   baseDir.mkdirs()
   Box(
@@ -462,8 +476,8 @@ private fun ImageArea(
         .fillMaxHeight(.3F)
   ) {
       LazyRow(modifier = Modifier.padding(16.dp)) {
-          itemsIndexed(images) { index, uri ->
-              ImageBox(uri, "Page Nr. ${index}", onRelease = { x, y ->
+          itemsIndexed(images) { index, image ->
+              ImageBox(image, "Page Nr. ${index}", onRelease = { x, y ->
                   val stepsToMoove = calcStepsToMove(index,
                       x,
                       imagePositions.slice(0..images.lastIndex)
