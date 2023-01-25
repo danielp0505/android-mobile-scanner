@@ -81,13 +81,14 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 .getReference(it.uid)
         }
 
-
+    //variable stores image UIDs present at initialization when editing a document
+    var initialImageUUIDs: MutableList<UUID> = mutableListOf()
 
     //this variable is necessary to avoid a race condition
     var initialized = false
     fun initDocument(documentUID: String?) {
         if (documentUID == null) return
-        if (!images.isEmpty()) return
+        if (images.isNotEmpty()) return
         if (initialized) return
 
         initialized = true
@@ -106,6 +107,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             forEachFirebaseImage(viewModelScope, documentSnapshot.reference.id) {
+                it.uuid?.let { uuid -> initialImageUUIDs.add(uuid) }
                 images.add(it)
             }
         }
@@ -117,6 +119,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
 
         val folderRef = firebaseStorage
 
+        //Image Upload
         val image_uuids = images.map{image ->
             if(image.uuid ==null){
                 // Datei noch nicht im Firestore, muss hochladen
@@ -125,11 +128,19 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             }
             image.uuid
         }
+
+        val unusedImages: MutableList<UUID?> = mutableListOf()
+        unusedImages.addAll(initialImageUUIDs)
+        unusedImages.removeAll(image_uuids)
+        unusedImages.forEach { uuid ->
+            folderRef?.child(uuid.toString())?.delete()
+        }
+
         var updatedDoc: HashMap<String, Any?> = hashMapOf()
         if (!document.title.isNullOrEmpty()) {
             updatedDoc["title"] = document.title
         }
-        if (!documentTags.isEmpty()) {
+        if (documentTags.isNotEmpty()) {
             updatedDoc ["tags"] = documentTags as List<String>
         }
         if (image_uuids.isNotEmpty()) {

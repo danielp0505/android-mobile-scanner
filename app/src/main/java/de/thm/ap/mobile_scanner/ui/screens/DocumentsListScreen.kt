@@ -62,7 +62,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteDocument(document: Document) {
         document.uri?.let {
-            deleteDocumentAndImages(it)
+            deleteDocumentAndImages(it, viewModelScope)
         }
         /*
         viewModelScope.launch(Dispatchers.IO) {
@@ -119,7 +119,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(images))
 
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }.also {
                 context.startActivity(Intent.createChooser(it, "Dokument teilen"))
             }
