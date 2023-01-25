@@ -30,4 +30,5 @@
     <string name="cancel">Abbrechen</string>
     <string name="new_tag">Neuer Tag</string>
     <string name="previous_name">Vorheriger Name</string>
+    <string name="search_placeholder">Suchbegriff hier eingeben...</string>
 </resources>

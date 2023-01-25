@@ -13,16 +13,21 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,10 +53,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     var searchString by mutableStateOf("")
 
-    /*
-    val documentsWithTags: LiveData<List<DocumentDAO.DocumentWithTags>> =
-        docDAO.findAllDocumentsWithTagsSync()
-    */
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
 
@@ -75,28 +76,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
             deleteDocument(document)
         }
         exitContextualMode()
-        /* Local deletion
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.deleteDocumentList(selectedDocuments)
-            launch(Dispatchers.Main) {
-                exitContextualMode()
-            }
-
-        }
-         */
-    }
-
-    fun toggleWithSelection(document: Document) {
-        if (!contextualMode) {
-            contextualMode = true
-        }
-        if (selectedDocuments.removeIf { it.documentId == document.documentId }) {
-            if (selectedDocuments.size == 0) {
-                exitContextualMode()
-            }
-        } else {
-            selectedDocuments.add(document)
-        }
     }
 
     fun exitContextualMode() {
@@ -146,17 +125,19 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun MyTopAppBar(
+fun DocumentListTopAppBar(
     openTagManagement: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     val vm: DocumentsListViewModel = viewModel()
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
     when {
         vm.contextualMode -> {
             TopAppBar(title = { Text(stringResource(id = R.string.app_name)) },
-                backgroundColor = MaterialTheme.colors.primaryVariant,
+                backgroundColor = MaterialTheme.colors.background,
                 navigationIcon = {
                     IconButton(onClick = { vm.exitContextualMode() }) {
                         Icon(
@@ -196,12 +177,18 @@ fun MyTopAppBar(
                         value = vm.searchString,
                         onValueChange = { vm.searchString = it },
                         colors = TextFieldDefaults.textFieldColors(
-                            backgroundColor = Color.White,
+                            backgroundColor = MaterialTheme.colors.primarySurface,
                             cursorColor = MaterialTheme.colors.onBackground,
+                            textColor = MaterialTheme.colors.onBackground,
                             focusedIndicatorColor = Color.Transparent,
                             disabledIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
-                        )
+                        ),
+                        placeholder = {Text(stringResource(id = R.string.search_placeholder))},
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            keyboardController?.hide()
+                        })
                     )
                     LaunchedEffect(Unit) {
                         focusRequester.requestFocus()
@@ -251,7 +238,7 @@ fun DocumentsListScreen(
     }
     val documentsWithTags = vm.documents
 
-    Scaffold(topBar = { MyTopAppBar(openTagManagement) }, floatingActionButton = {
+    Scaffold(topBar = { DocumentListTopAppBar(openTagManagement) }, floatingActionButton = {
         AddDocumentButton({ addDocument() })
     }, bottomBar = {
         BottomAppBar(
@@ -285,7 +272,8 @@ fun DocumentsListScreen(
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
                 items(items = documentsWithTags.filter {
-                    it.matches(vm.searchString)
+                    it.matches(vm.searchString) ||
+                    it.document.title?.lowercase()?.contains(vm.searchString.lowercase()) == true
                 }, key = { it.document.documentId!! }) { documentWithTags ->
                     DocumentListItem(document = documentWithTags.document,
                         tags = documentWithTags.tags,
