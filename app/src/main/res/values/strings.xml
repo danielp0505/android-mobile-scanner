@@ -23,12 +23,17 @@
     <string name="delete_image">Bild köschen</string>
     <string name="add_image">Bild hinzufügen</string>
     <string name="take_photo">Foto aufnehmen</string>
-    <string name="login">Einloggen</string>
-    <string name="logout">Ausloggen</string>
+    <string name="login">Anmelden</string>
+    <string name="logout">Abmelden</string>
     <string name="share">Teilen</string>
     <string name="search">Durchsuchen</string>
     <string name="cancel">Abbrechen</string>
     <string name="new_tag">Neuer Tag</string>
     <string name="previous_name">Vorheriger Name</string>
     <string name="search_placeholder">Suchbegriff hier eingeben...</string>
+    <string name="my_account">Mein Account</string>
+    <string name="welcome_heading">Willkommen zu deinem Dokumentenscanner</string>
+    <string name="welcome_get_started">Um deine Dokumente zu verwalten, musst du dich
+    zuerst mit deinem Google-Account anmelden. Alle Dokumente werden automatisch in der Cloud gespeichert.
+    </string>
 </resources>

@@ -65,10 +65,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         document.uri?.let {
             deleteDocumentAndImages(it, viewModelScope)
         }
-        /*
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.delete(document)
-        }*/
     }
 
     fun deleteSelection() {
@@ -199,19 +195,19 @@ fun DocumentListTopAppBar(
         else -> {
             TopAppBar(title = { Text(stringResource(id = R.string.app_name)) }, actions = {
                 IconButton(onClick = {
-                    openTagManagement()
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = stringResource(id = R.string.manage_tags)
-                    )
-                }
-                IconButton(onClick = {
                     vm.isSearching = true
                 }) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = stringResource(id = R.string.search)
+                    )
+                }
+                IconButton(onClick = {
+                    openTagManagement()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = stringResource(id = R.string.my_account)
                     )
                 }
             })
@@ -224,7 +220,7 @@ fun DocumentListTopAppBar(
 @Composable
 fun DocumentsListScreen(
     openDocument: (id: String) -> Unit,
-    openTagManagement: () -> Unit,
+    openUserScreen: () -> Unit,
     addDocument: () -> Unit,
     editDocument: (String) -> Unit,
     login: () -> Unit,
@@ -232,32 +228,19 @@ fun DocumentsListScreen(
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val context = LocalContext.current
-    //val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+
     if(ReferenceCollection.userDocReference != null){
         vm.initQueries()
     }
     val documentsWithTags = vm.documents
 
-    Scaffold(topBar = { DocumentListTopAppBar(openTagManagement) }, floatingActionButton = {
-        AddDocumentButton({ addDocument() })
+    Scaffold(topBar = { DocumentListTopAppBar(openUserScreen) }, floatingActionButton = {
+        AddDocumentButton { addDocument() }
     }, bottomBar = {
         BottomAppBar(
         ) {
             Text(text = stringResource(id = R.string.number_of_documents) + ": " + documentsWithTags.size)
             Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = {
-                if (vm.auth.currentUser == null) {
-                    login()
-                } else {
-                    logout()
-                }
-            }) {
-                var textId by remember { mutableStateOf(if (vm.auth.currentUser == null) R.string.login else R.string.logout) }
-                vm.auth.addAuthStateListener {
-                    textId = if (vm.auth.currentUser == null) R.string.login else R.string.logout
-                }
-                Text(text = stringResource(id = textId))
-            }
         }
     }) { innerPadding ->
         if (documentsWithTags.isEmpty()) {
@@ -383,4 +366,3 @@ fun TagButton(tag: Tag, onClick: () -> Unit) {
         modifier = Modifier.height(28.dp)
     )
 }
-

@@ -1,7 +1,6 @@
 package de.thm.ap.mobile_scanner.ui.screens
 
 import android.app.Application
-import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -23,9 +21,8 @@ import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
-import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
+import de.thm.ap.mobile_scanner.data.runWithDocumentSnapshot
 import de.thm.ap.mobile_scanner.model.Image
-import kotlinx.coroutines.launch
 
 class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
     val dao = AppDatabase.getDb(app).documentDao()
@@ -36,7 +33,7 @@ class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
     fun initDocument(documentUID: String) {
         if (isInitialized) return
         isInitialized = true
-        runWithDocumentShapshot(documentUID){ documentSnapshot ->
+        runWithDocumentSnapshot(documentUID){ documentSnapshot ->
             val title = documentSnapshot.get("title")
             document =
                 when(title) {

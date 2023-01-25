@@ -9,24 +9,20 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavType
+import androidx.navigation.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.FirebaseAuthUIActivityResultContract
 import com.firebase.ui.auth.data.model.FirebaseAuthUIAuthenticationResult
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.*
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import de.thm.ap.mobile_scanner.data.ReferenceCollection
-import de.thm.ap.mobile_scanner.ui.screens.DocumentEditScreen
-import de.thm.ap.mobile_scanner.ui.screens.DocumentViewScreen
-import de.thm.ap.mobile_scanner.ui.screens.DocumentsListScreen
-import de.thm.ap.mobile_scanner.ui.screens.TagManagementScreen
+import de.thm.ap.mobile_scanner.ui.screens.*
 import de.thm.ap.mobile_scanner.ui.theme.MobilescannerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -59,7 +55,7 @@ class MainActivity : ComponentActivity() {
                 .get()
                 .addOnSuccessListener { querySnapshot: QuerySnapshot ->
                     when {
-                        // user doasn't exist
+                        // user doesn't exist
                         querySnapshot.isEmpty -> {
                             firestore_db.collection("users").add(user)
                                 .addOnSuccessListener {
@@ -69,8 +65,10 @@ class MainActivity : ComponentActivity() {
                         //user exists
                         else -> {
                             querySnapshot.forEach { documentSnapshot: QueryDocumentSnapshot ->
-                                if (documentSnapshot.get("uid") == auth.currentUser!!.uid) {
-                                    ReferenceCollection.userDocReference = documentSnapshot.reference
+                                auth.currentUser?.uid?.let{
+                                    if (documentSnapshot.get("uid") == it){
+                                        ReferenceCollection.userDocReference = documentSnapshot.reference
+                                    }
                                 }
                             }
                         }
@@ -113,12 +111,16 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colors.background
                 ) {
                     val navController = rememberNavController()
-                    NavHost(navController = navController, startDestination = "documentsList") {
+                    NavHost(navController = navController,
+                        startDestination = if(Firebase.auth.currentUser == null) "welcome"
+                                            else "documentsList"
+                    )
+                    {
                         composable("documentsList") { backStackEntry: NavBackStackEntry ->
                             DocumentsListScreen(
                                 openDocument = { navController.navigate("documentViewScreen/${it}")},
-                                openTagManagement = {
-                                    navController.navigate("tagManagement")
+                                openUserScreen = {
+                                    navController.navigate("userScreen")
                                 },
                                 addDocument = {
                                         navController.navigate("documentEditScreen")
@@ -129,13 +131,25 @@ class MainActivity : ComponentActivity() {
                                 logout = { signOut() }
                             )
                         }
-                        composable("tagManagement") { backStackEntry: NavBackStackEntry ->
-                            TagManagementScreen(dismissTagManager = {
-                                navController.popBackStack()
-                            })
-                        }
                         composable("documentEditScreen") { backStackEntry: NavBackStackEntry ->
                             DocumentEditScreen(navController = navController, null)
+                        }
+                        composable("userScreen") { backStackEntry: NavBackStackEntry ->
+                            UserScreen(goBack = { navController.popBackStack() },
+                            logout = {
+                                    Firebase.auth.addAuthStateListener {
+                                        if(Firebase.auth.currentUser == null) {
+                                            navController.navigate("welcome")
+                                        }
+                                    }
+                                    signOut()
+                                }
+                            )
+                        }
+                        composable("welcome") { backStackEntry: NavBackStackEntry ->
+                            WelcomeScreen (
+                                login = { startSignIn() },
+                                loginSuccess = { navController.navigate("documentsList")})
                         }
                         composable(
                             "documentEditScreen/{documentUID}",
