@@ -146,7 +146,10 @@ fun UserStatisticsDialog(vm: UserScreenViewModel) {
     val showDialog: Boolean = vm.showStats
     val totalPageCount: Long? = vm.totalPageCount
     val documentCount: Long? = vm.numberOfDocuments
-    val averagePageCount: Double? = vm.averagePageCount()
+    val averagePageCount = vm.averagePageCount()?.let {
+        BigDecimal(it)
+        .setScale(2, RoundingMode.HALF_EVEN)
+    }
     val storageUsage = BigDecimal(byteCountToMegabyte(vm.usedStorageInBytes))
         .setScale(2, RoundingMode.HALF_EVEN)
     vm.getUserStats()
