@@ -13,16 +13,23 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,10 +55,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     var searchString by mutableStateOf("")
 
-    /*
-    val documentsWithTags: LiveData<List<DocumentDAO.DocumentWithTags>> =
-        docDAO.findAllDocumentsWithTagsSync()
-    */
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
 
@@ -64,10 +67,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         document.uri?.let {
             deleteDocumentAndImages(it, viewModelScope)
         }
-        /*
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.delete(document)
-        }*/
     }
 
     fun deleteSelection() {
@@ -75,28 +74,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
             deleteDocument(document)
         }
         exitContextualMode()
-        /* Local deletion
-        viewModelScope.launch(Dispatchers.IO) {
-            docDAO.deleteDocumentList(selectedDocuments)
-            launch(Dispatchers.Main) {
-                exitContextualMode()
-            }
-
-        }
-         */
-    }
-
-    fun toggleWithSelection(document: Document) {
-        if (!contextualMode) {
-            contextualMode = true
-        }
-        if (selectedDocuments.removeIf { it.documentId == document.documentId }) {
-            if (selectedDocuments.size == 0) {
-                exitContextualMode()
-            }
-        } else {
-            selectedDocuments.add(document)
-        }
     }
 
     fun exitContextualMode() {
@@ -146,17 +123,19 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun MyTopAppBar(
+fun DocumentListTopAppBar(
     openTagManagement: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     val vm: DocumentsListViewModel = viewModel()
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
     when {
         vm.contextualMode -> {
             TopAppBar(title = { Text(stringResource(id = R.string.app_name)) },
-                backgroundColor = MaterialTheme.colors.primaryVariant,
+                backgroundColor = MaterialTheme.colors.background,
                 navigationIcon = {
                     IconButton(onClick = { vm.exitContextualMode() }) {
                         Icon(
@@ -196,12 +175,18 @@ fun MyTopAppBar(
                         value = vm.searchString,
                         onValueChange = { vm.searchString = it },
                         colors = TextFieldDefaults.textFieldColors(
-                            backgroundColor = Color.White,
+                            backgroundColor = MaterialTheme.colors.primarySurface,
                             cursorColor = MaterialTheme.colors.onBackground,
+                            textColor = MaterialTheme.colors.onBackground,
                             focusedIndicatorColor = Color.Transparent,
                             disabledIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
-                        )
+                        ),
+                        placeholder = {Text(stringResource(id = R.string.search_placeholder))},
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            keyboardController?.hide()
+                        })
                     )
                     LaunchedEffect(Unit) {
                         focusRequester.requestFocus()
@@ -212,19 +197,19 @@ fun MyTopAppBar(
         else -> {
             TopAppBar(title = { Text(stringResource(id = R.string.app_name)) }, actions = {
                 IconButton(onClick = {
-                    openTagManagement()
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = stringResource(id = R.string.manage_tags)
-                    )
-                }
-                IconButton(onClick = {
                     vm.isSearching = true
                 }) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = stringResource(id = R.string.search)
+                    )
+                }
+                IconButton(onClick = {
+                    openTagManagement()
+                }) {
+                    Icon(
+                        imageVector = Icons.Rounded.AccountCircle,
+                        contentDescription = stringResource(id = R.string.my_account)
                     )
                 }
             })
@@ -237,40 +222,25 @@ fun MyTopAppBar(
 @Composable
 fun DocumentsListScreen(
     openDocument: (id: String) -> Unit,
-    openTagManagement: () -> Unit,
+    openUserScreen: () -> Unit,
     addDocument: () -> Unit,
     editDocument: (String) -> Unit,
-    login: () -> Unit,
-    logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val context = LocalContext.current
-    //val documentsWithTags by vm.documentsWithTags.observeAsState(initial = emptyList())
+
     if(ReferenceCollection.userDocReference != null){
         vm.initQueries()
     }
     val documentsWithTags = vm.documents
 
-    Scaffold(topBar = { MyTopAppBar(openTagManagement) }, floatingActionButton = {
-        AddDocumentButton({ addDocument() })
+    Scaffold(topBar = { DocumentListTopAppBar(openUserScreen) }, floatingActionButton = {
+        AddDocumentButton { addDocument() }
     }, bottomBar = {
         BottomAppBar(
         ) {
             Text(text = stringResource(id = R.string.number_of_documents) + ": " + documentsWithTags.size)
             Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = {
-                if (vm.auth.currentUser == null) {
-                    login()
-                } else {
-                    logout()
-                }
-            }) {
-                var textId by remember { mutableStateOf(if (vm.auth.currentUser == null) R.string.login else R.string.logout) }
-                vm.auth.addAuthStateListener {
-                    textId = if (vm.auth.currentUser == null) R.string.login else R.string.logout
-                }
-                Text(text = stringResource(id = textId))
-            }
         }
     }) { innerPadding ->
         if (documentsWithTags.isEmpty()) {
@@ -285,9 +255,11 @@ fun DocumentsListScreen(
             val lazyListState = rememberLazyListState()
             LazyColumn(contentPadding = innerPadding, state = lazyListState) {
                 items(items = documentsWithTags.filter {
-                    it.matches(vm.searchString)
+                    it.matches(vm.searchString) ||
+                    it.document.title?.lowercase()?.contains(vm.searchString.lowercase()) == true
                 }, key = { it.document.documentId!! }) { documentWithTags ->
-                    DocumentListItem(document = documentWithTags.document,
+                    DocumentListItem(
+                        document = documentWithTags.document,
                         tags = documentWithTags.tags,
                         editDocument = {editDocument(documentWithTags.document.uri!!)},
 						openDocument = { openDocument(documentWithTags.document.uri!!) },
@@ -328,7 +300,8 @@ fun DocumentListItem(
     Row(
     ) {
         ListItem(modifier = Modifier
-            .background(color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary else MaterialTheme.colors.background)
+            .background(color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary
+                                else MaterialTheme.colors.background)
             .combinedClickable(
                 onClick = {
                     when {
@@ -347,12 +320,16 @@ fun DocumentListItem(
                 },
             ), text = {
             val title: String =
-                if (document.title == null) stringResource(id = R.string.unnamed_document) else document.title!!
+                if (document.title == null) stringResource(id = R.string.unnamed_document)
+                else document.title!!
             Text(
-                text = title, maxLines = 1, overflow = TextOverflow.Clip
+                text = title, maxLines = 1, overflow = TextOverflow.Clip,
+                fontWeight = FontWeight.SemiBold
             )
         }, secondaryText = {
-                LazyRow(content = {
+                LazyRow(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    content = {
                     items(items = tags, key = { it.tagId!! }) { tag ->
                         TagButton(tag = tag, onClick = {
                             vm.searchString = tag.name!!
@@ -392,7 +369,6 @@ fun TagButton(tag: Tag, onClick: () -> Unit) {
     },
         onClick = { onClick() },
         shape = RoundedCornerShape(15.dp),
-        modifier = Modifier.height(28.dp)
+        modifier = Modifier.height(30.dp)
     )
 }
-

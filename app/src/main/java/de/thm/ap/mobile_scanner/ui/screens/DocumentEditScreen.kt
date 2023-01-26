@@ -52,7 +52,7 @@ import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.model.*
 import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
-import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
+import de.thm.ap.mobile_scanner.data.runWithDocumentSnapshot
 import de.thm.ap.mobile_scanner.model.Document
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -93,7 +93,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
 
         initialized = true
         isEditMode = true
-        runWithDocumentShapshot(documentUID){ documentSnapshot ->
+        runWithDocumentSnapshot(documentUID){ documentSnapshot ->
             val title = documentSnapshot.get("title")
             document =
                 when(title) {
@@ -257,7 +257,7 @@ fun DocumentEditScreen(
                         Text(text = stringResource(id = R.string.document_title))
                     })
 
-                    Divider(modifier = Modifier.padding(12.dp))
+                    Spacer(modifier = Modifier.padding(12.dp))
 
                 if(vm.showTagUpdateDialog) UpdateTagDialog()
                 OutlinedTextField(
