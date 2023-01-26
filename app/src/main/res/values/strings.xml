@@ -38,6 +38,16 @@
     </string>
     <string name="unknown_name">Name unbekannt</string>
     <string name="empty_document_error">Leere Dokumente werden nicht gespeichert.
-         Füge mindestens ein Bild hinzu</string>
+         Füge mindestens ein Bild hinzu.</string>
     <string name="empty_tag_field_error">Das Feld ist leer. Gib deinem Tag einen Namen.</string>
+    <string name="user_stats">Nutzerstatistiken</string>
+    <string name="calculating">Berechnen</string>
+    <string name="close">Schließen</string>
+    <string name="stats_total_pages">Summe aller Seiten</string>
+    <string name="stats_average_pages">Durchschnittliche Seitenanzahl</string>
+    <string name="stats_documents">Erstellte Dokumente</string>
+    <string name="stats_storage">Benutzter Speicherplatz</string>
+    <string name="stats_creation">Statistiken werden erstellt..</string>
+    <string name="stats_no_documents">Du hast keine Dokumente erstellt. Eine Statistik kann
+    daher nicht erzeugt werden. </string>
 </resources>
