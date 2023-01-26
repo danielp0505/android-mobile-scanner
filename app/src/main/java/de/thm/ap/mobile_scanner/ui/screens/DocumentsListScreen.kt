@@ -4,6 +4,15 @@ import android.app.Application
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
+import android.net.Uri
+import android.transition.Transition
+import android.util.Log
+import android.widget.Toast
+import androidx.annotation.NonNull
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -33,17 +42,26 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.auth.FirebaseAuth
+import coil.Coil
+import coil.request.ImageRequest
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
 import com.google.firebase.firestore.ListenerRegistration
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.*
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.Tag
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import org.jetbrains.annotations.Nullable
+import java.io.File
+import java.io.FileOutputStream
+
 
 class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     private val docDAO: DocumentDAO = AppDatabase.getDb(app.baseContext).documentDao()
@@ -57,8 +75,6 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     var contextualMode by mutableStateOf(false)
     var selectedDocuments: MutableList<Document> = mutableStateListOf<Document>()
-
-    val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
     var snapshotListener: ListenerRegistration? = null
     var documents: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
@@ -81,26 +97,68 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         selectedDocuments.clear()
     }
 
-    fun shareDocument(context: Context, documentId: Long) {
-        viewModelScope.launch {
-            val images = docDAO.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "image/*"
-                var clip: ClipData? = null
-                images.forEach {
-                    if (clip == null) {
-                        clip = ClipData.newRawUri("", it)
-                    } else {
-                        clip!!.addItem(ClipData.Item(it))
+    fun shareDocument(context: Context, documentUID: String) {
+        ReferenceCollection.userDocReference
+            ?.collection("documents")
+            ?.document(documentUID)?.get()
+            ?.addOnSuccessListener { documentSnapshot ->
+                viewModelScope.launch(Dispatchers.IO) {
+                    val imageUUIDs = documentSnapshot.get("images")
+                    if (imageUUIDs is List<*>) {
+                        val images: List<Uri?> = imageUUIDs.map { UUID ->
+                            firebaseStorage?.child(UUID.toString())
+                                ?.downloadUrl?.await()
+                        }
+                        Log.v("SHARE", images.toString())
+                        /* Caching File locally to share
+                        val cachedFiles: MutableList<File> = mutableListOf()
+                        val i = 0
+                        images.forEach { uri: Uri? ->
+                            uri?.let{
+                                val request = ImageRequest.Builder(context)
+                                    .data(uri.toString())
+                                    .build()
+                                val drawable: Drawable? = Coil.imageLoader(context).execute(request).drawable
+                                if(drawable is BitmapDrawable){
+                                    val cacheFile = File(context.cacheDir, "$i.png")
+                                    val fileOutputStream = FileOutputStream(cacheFile)
+                                    val bitmap = drawable.bitmap
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, fileOutputStream)
+                                    fileOutputStream.flush()
+                                    fileOutputStream.close()
+                                    cachedFiles.add(cacheFile)
+                                }
+                            }
+                        }
+                        val localUri: List<Uri> = cachedFiles.map { cachedFile ->
+                            FileProvider.getUriForFile(context,
+                                "de.thm.fileprovider", cachedFile)
+                        }
+                        Log.v("SHARE", cachedFiles.toString())
+                        Log.v("SHARE", localUri.toString())
+                        */
+
+                        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = "image/*"
+                            var clip: ClipData? = null
+                            images.forEach {
+                                if(it != null) {
+                                    if (clip == null) {
+                                        clip = ClipData.newRawUri("", it)
+                                    } else {
+                                        clip!!.addItem(ClipData.Item(it))
+                                    }
+                                }
+                            }
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(images))
+
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }.also {
+                            context.startActivity(Intent.createChooser(it, "Dokument teilen"))
+                        }
                     }
                 }
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(images))
-
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }.also {
-                context.startActivity(Intent.createChooser(it, "Dokument teilen"))
             }
-        }
     }
 
     fun initQueries() {
@@ -263,7 +321,8 @@ fun DocumentsListScreen(
                         tags = documentWithTags.tags,
                         editDocument = {editDocument(documentWithTags.document.uri!!)},
 						openDocument = { openDocument(documentWithTags.document.uri!!) },
-                        shareDocument = {vm.shareDocument(context, documentWithTags.document.documentId!!)}
+                        shareDocument = {
+                            documentWithTags.document.uri?.let{vm.shareDocument(context, it)}}
                     )
                     Divider(color = Color.Gray)
                 }
@@ -300,8 +359,10 @@ fun DocumentListItem(
     Row(
     ) {
         ListItem(modifier = Modifier
-            .background(color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary
-                                else MaterialTheme.colors.background)
+            .background(
+                color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary
+                else MaterialTheme.colors.background
+            )
             .combinedClickable(
                 onClick = {
                     when {

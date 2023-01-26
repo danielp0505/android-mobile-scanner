@@ -4,4 +4,8 @@
         name="document_images"
         path="."
         />
+    <cache-path
+    name="share_cache"
+    path="."
+        />
 </paths>
