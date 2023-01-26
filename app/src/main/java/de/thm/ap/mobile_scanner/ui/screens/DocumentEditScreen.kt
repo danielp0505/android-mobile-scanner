@@ -49,11 +49,10 @@ import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.R
-import de.thm.ap.mobile_scanner.model.*
 import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
 import de.thm.ap.mobile_scanner.data.runWithDocumentSnapshot
-import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
