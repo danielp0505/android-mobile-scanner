@@ -37,4 +37,7 @@
     zuerst mit deinem Google-Account anmelden. Alle Dokumente werden automatisch in der Cloud gespeichert.
     </string>
     <string name="unknown_name">Name unbekannt</string>
+    <string name="empty_document_error">Leere Dokumente werden nicht gespeichert.
+         Füge mindestens ein Bild hinzu</string>
+    <string name="empty_tag_field_error">Das Feld ist leer. Gib deinem Tag einen Namen.</string>
 </resources>

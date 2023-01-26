@@ -153,6 +153,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             ?.set(updatedDoc)
     }
     fun saveDocument() {
+        if (images.isEmpty()) return
         if (isEditMode) return updateDocument()
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -223,9 +224,13 @@ fun DocumentEditScreen(
     val vm: DocumentEditScreenViewModel = viewModel()
     val tags = vm.documentTags
     vm.initDocument(documentUID)
+    val scaffoldState: ScaffoldState = rememberScaffoldState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = Modifier.fillMaxWidth(),
+        scaffoldState = scaffoldState,
         topBar = {
             TopAppBar(navigationIcon = {
                 IconButton(onClick = { navController.navigateUp() }) {
@@ -259,6 +264,15 @@ fun DocumentEditScreen(
 
                     Spacer(modifier = Modifier.padding(12.dp))
 
+                fun addNewTag(){
+                    if(vm.newTag.isNotEmpty()) vm.addNewTag()
+                    else scope.launch(Dispatchers.Default) {
+                        val snackbarResult = scaffoldState.snackbarHostState.showSnackbar(
+                            message = context.getString(R.string.empty_tag_field_error)
+                        )
+                    }
+                }
+
                 if(vm.showTagUpdateDialog) UpdateTagDialog()
                 OutlinedTextField(
                     keyboardOptions= KeyboardOptions(
@@ -266,7 +280,7 @@ fun DocumentEditScreen(
                         imeAction = ImeAction.Done
                     ),
                     keyboardActions =  KeyboardActions {
-                        vm.addNewTag()
+                        addNewTag()
                     },
                     value = vm.newTag,
                     onValueChange = { vm.newTag = it },
@@ -275,7 +289,7 @@ fun DocumentEditScreen(
                     }
                 )
                 Button(onClick = {
-                    vm.addNewTag()
+                    addNewTag()
                 }) {
                     Text(text = stringResource(id = R.string.add_tag))
                 }
@@ -302,9 +316,19 @@ fun DocumentEditScreen(
 
             FloatingActionButton(
                 onClick = {
-                    vm.saveDocument()
-                    navController.navigateUp()
+                    if(!vm.images.isEmpty()) {
+                        vm.saveDocument()
+                        navController.navigateUp()
+                    }
+                    else {
+                        scope.launch(Dispatchers.Default) {
+                            val snackbarResult = scaffoldState.snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.empty_document_error)
+                            )
+                        }
+                    }
                 },
+
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
