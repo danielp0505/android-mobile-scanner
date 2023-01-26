@@ -36,4 +36,5 @@
     <string name="welcome_get_started">Um deine Dokumente zu verwalten, musst du dich
     zuerst mit deinem Google-Account anmelden. Alle Dokumente werden automatisch in der Cloud gespeichert.
     </string>
+    <string name="unknown_name">Name unbekannt</string>
 </resources>

@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -206,7 +208,7 @@ fun DocumentListTopAppBar(
                     openTagManagement()
                 }) {
                     Icon(
-                        imageVector = Icons.Default.Person,
+                        imageVector = Icons.Rounded.AccountCircle,
                         contentDescription = stringResource(id = R.string.my_account)
                     )
                 }
@@ -223,8 +225,6 @@ fun DocumentsListScreen(
     openUserScreen: () -> Unit,
     addDocument: () -> Unit,
     editDocument: (String) -> Unit,
-    login: () -> Unit,
-    logout: () -> Unit,
 ) {
     val vm: DocumentsListViewModel = viewModel()
     val context = LocalContext.current
@@ -258,7 +258,8 @@ fun DocumentsListScreen(
                     it.matches(vm.searchString) ||
                     it.document.title?.lowercase()?.contains(vm.searchString.lowercase()) == true
                 }, key = { it.document.documentId!! }) { documentWithTags ->
-                    DocumentListItem(document = documentWithTags.document,
+                    DocumentListItem(
+                        document = documentWithTags.document,
                         tags = documentWithTags.tags,
                         editDocument = {editDocument(documentWithTags.document.uri!!)},
 						openDocument = { openDocument(documentWithTags.document.uri!!) },
@@ -299,7 +300,8 @@ fun DocumentListItem(
     Row(
     ) {
         ListItem(modifier = Modifier
-            .background(color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary else MaterialTheme.colors.background)
+            .background(color = if (vm.selectedDocuments.contains(document)) MaterialTheme.colors.secondary
+                                else MaterialTheme.colors.background)
             .combinedClickable(
                 onClick = {
                     when {
@@ -318,12 +320,16 @@ fun DocumentListItem(
                 },
             ), text = {
             val title: String =
-                if (document.title == null) stringResource(id = R.string.unnamed_document) else document.title!!
+                if (document.title == null) stringResource(id = R.string.unnamed_document)
+                else document.title!!
             Text(
-                text = title, maxLines = 1, overflow = TextOverflow.Clip
+                text = title, maxLines = 1, overflow = TextOverflow.Clip,
+                fontWeight = FontWeight.SemiBold
             )
         }, secondaryText = {
-                LazyRow(content = {
+                LazyRow(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    content = {
                     items(items = tags, key = { it.tagId!! }) { tag ->
                         TagButton(tag = tag, onClick = {
                             vm.searchString = tag.name!!
@@ -363,6 +369,6 @@ fun TagButton(tag: Tag, onClick: () -> Unit) {
     },
         onClick = { onClick() },
         shape = RoundedCornerShape(15.dp),
-        modifier = Modifier.height(28.dp)
+        modifier = Modifier.height(30.dp)
     )
 }

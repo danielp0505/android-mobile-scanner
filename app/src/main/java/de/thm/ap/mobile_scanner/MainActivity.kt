@@ -126,9 +126,8 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("documentEditScreen")
                                               },
                                 editDocument = { documentUID: String ->
-                                    navController.navigate("documentEditScreen/${documentUID}")},
-                                login = { startSignIn() },
-                                logout = { signOut() }
+                                    navController.navigate("documentEditScreen/${documentUID}")
+                                }
                             )
                         }
                         composable("documentEditScreen") { backStackEntry: NavBackStackEntry ->
