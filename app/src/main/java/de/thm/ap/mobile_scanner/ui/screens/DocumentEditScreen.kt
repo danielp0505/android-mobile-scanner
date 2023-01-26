@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.input.ImeAction
@@ -215,6 +217,7 @@ open class TakePicture : ActivityResultContract<Uri, Uri?>() {
 }
 
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DocumentEditScreen(
     navController: NavController,
@@ -222,6 +225,7 @@ fun DocumentEditScreen(
 ) {
     val vm: DocumentEditScreenViewModel = viewModel()
     val tags = vm.documentTags
+    val keyboardController = LocalSoftwareKeyboardController.current
     vm.initDocument(documentUID)
     val scaffoldState: ScaffoldState = rememberScaffoldState()
     val context = LocalContext.current
@@ -254,6 +258,12 @@ fun DocumentEditScreen(
                 Divider(modifier = Modifier.padding(8.dp))
 
                 OutlinedTextField(
+                    keyboardOptions= KeyboardOptions(
+                        keyboardType= KeyboardType.Email,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions =  KeyboardActions(
+                        onDone = {keyboardController?.hide()}),
                     value = vm.document.title ?: "",
                     onValueChange = { vm.document = vm.document.copy(title = it) },
                     singleLine = true,
@@ -278,9 +288,11 @@ fun DocumentEditScreen(
                         keyboardType= KeyboardType.Email,
                         imeAction = ImeAction.Done
                     ),
-                    keyboardActions =  KeyboardActions {
-                        addNewTag()
-                    },
+                    keyboardActions =  KeyboardActions(
+                        onDone = {
+                            addNewTag()
+                            keyboardController?.hide()
+                        }),
                     value = vm.newTag,
                     onValueChange = { vm.newTag = it },
                     label = {
