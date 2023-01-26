@@ -23,11 +23,31 @@
     <string name="delete_image">Bild köschen</string>
     <string name="add_image">Bild hinzufügen</string>
     <string name="take_photo">Foto aufnehmen</string>
-    <string name="login">Einloggen</string>
-    <string name="logout">Ausloggen</string>
+    <string name="login">Anmelden</string>
+    <string name="logout">Abmelden</string>
     <string name="share">Teilen</string>
     <string name="search">Durchsuchen</string>
     <string name="cancel">Abbrechen</string>
     <string name="new_tag">Neuer Tag</string>
     <string name="previous_name">Vorheriger Name</string>
+    <string name="search_placeholder">Suchbegriff hier eingeben...</string>
+    <string name="my_account">Mein Account</string>
+    <string name="welcome_heading">Willkommen zu deinem Dokumentenscanner</string>
+    <string name="welcome_get_started">Um deine Dokumente zu verwalten, musst du dich
+    zuerst mit deinem Google-Account anmelden. Alle Dokumente werden automatisch in der Cloud gespeichert.
+    </string>
+    <string name="unknown_name">Name unbekannt</string>
+    <string name="empty_document_error">Leere Dokumente werden nicht gespeichert.
+         Füge mindestens ein Bild hinzu.</string>
+    <string name="empty_tag_field_error">Das Feld ist leer. Gib deinem Tag einen Namen.</string>
+    <string name="user_stats">Nutzerstatistiken</string>
+    <string name="calculating">Berechnen</string>
+    <string name="close">Schließen</string>
+    <string name="stats_total_pages">Summe aller Seiten</string>
+    <string name="stats_average_pages">Durchschnittliche Seitenanzahl</string>
+    <string name="stats_documents">Erstellte Dokumente</string>
+    <string name="stats_storage">Benutzter Speicherplatz</string>
+    <string name="stats_creation">Statistiken werden erstellt..</string>
+    <string name="stats_no_documents">Du hast keine Dokumente erstellt. Eine Statistik kann
+    daher nicht erzeugt werden. </string>
 </resources>

@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.*
 
-fun runWithDocumentShapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
+fun runWithDocumentSnapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
     ReferenceCollection.userDocReference
         ?.collection("documents")
         ?.document(documentUID)

@@ -51,11 +51,10 @@ import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.R
-import de.thm.ap.mobile_scanner.model.*
 import de.thm.ap.mobile_scanner.data.ReferenceCollection
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
-import de.thm.ap.mobile_scanner.data.runWithDocumentShapshot
-import de.thm.ap.mobile_scanner.model.Document
+import de.thm.ap.mobile_scanner.data.runWithDocumentSnapshot
+import de.thm.ap.mobile_scanner.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
@@ -95,7 +94,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
 
         initialized = true
         isEditMode = true
-        runWithDocumentShapshot(documentUID){ documentSnapshot ->
+        runWithDocumentSnapshot(documentUID){ documentSnapshot ->
             val title = documentSnapshot.get("title")
             document =
                 when(title) {
@@ -155,6 +154,7 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
             ?.set(updatedDoc)
     }
     fun saveDocument() {
+        if (images.isEmpty()) return
         if (isEditMode) return updateDocument()
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -227,9 +227,13 @@ fun DocumentEditScreen(
     val tags = vm.documentTags
     val keyboardController = LocalSoftwareKeyboardController.current
     vm.initDocument(documentUID)
+    val scaffoldState: ScaffoldState = rememberScaffoldState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = Modifier.fillMaxWidth(),
+        scaffoldState = scaffoldState,
         topBar = {
             TopAppBar(navigationIcon = {
                 IconButton(onClick = { navController.navigateUp() }) {
@@ -267,7 +271,16 @@ fun DocumentEditScreen(
                         Text(text = stringResource(id = R.string.document_title))
                     })
 
-                    Divider(modifier = Modifier.padding(12.dp))
+                    Spacer(modifier = Modifier.padding(12.dp))
+
+                fun addNewTag(){
+                    if(vm.newTag.isNotEmpty()) vm.addNewTag()
+                    else scope.launch(Dispatchers.Default) {
+                        val snackbarResult = scaffoldState.snackbarHostState.showSnackbar(
+                            message = context.getString(R.string.empty_tag_field_error)
+                        )
+                    }
+                }
 
                 if(vm.showTagUpdateDialog) UpdateTagDialog()
                 OutlinedTextField(
@@ -277,7 +290,7 @@ fun DocumentEditScreen(
                     ),
                     keyboardActions =  KeyboardActions(
                         onDone = {
-                            vm.addNewTag()
+                            addNewTag()
                             keyboardController?.hide()
                         }),
                     value = vm.newTag,
@@ -287,7 +300,7 @@ fun DocumentEditScreen(
                     }
                 )
                 Button(onClick = {
-                    vm.addNewTag()
+                    addNewTag()
                 }) {
                     Text(text = stringResource(id = R.string.add_tag))
                 }
@@ -314,9 +327,19 @@ fun DocumentEditScreen(
 
             FloatingActionButton(
                 onClick = {
-                    vm.saveDocument()
-                    navController.navigateUp()
+                    if(!vm.images.isEmpty()) {
+                        vm.saveDocument()
+                        navController.navigateUp()
+                    }
+                    else {
+                        scope.launch(Dispatchers.Default) {
+                            val snackbarResult = scaffoldState.snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.empty_document_error)
+                            )
+                        }
+                    }
                 },
+
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
