@@ -27,25 +27,27 @@ val firebaseStorage: StorageReference? =
             .getReference(it.uid)
     }
 
-fun forEachFirebaseImage(context: CoroutineScope, documentUri: String, f: (Image) -> Unit){
-    context.launch(Dispatchers.IO) {
-        ReferenceCollection.userDocReference
-            ?.collection("documents")
-            ?.document(documentUri)?.get()?.await()?.let {
-                val images = it.get("images")
-                if (!(images is List<*>)) return@let
+suspend fun getFirebaseImages(documentUri: String): List<Image>{
+    val images =
+        ReferenceCollection.userDocReference?.collection("documents")?.document(documentUri)?.get()
+            ?.await()?.get("images")
+    if (!(images is List<*>)) return listOf()
 
-                images.map {
-                    val uuid = UUID.fromString(it.toString())
-                    val uri = firebaseStorage?.child(uuid.toString())?.downloadUrl?.await()
+    return images.map {
+        val uuid = UUID.fromString(it.toString())
+        val uri = firebaseStorage?.child(uuid.toString())?.downloadUrl?.await()
 
-                    Image(uuid = UUID.fromString(it.toString()), uri =uri.toString())
-                }.forEach(f)
-            }
-
+        Image(uuid = UUID.fromString(it.toString()), uri = uri.toString())
     }
+
+}
+suspend  fun withFirebaseImages(documentUri: String, f: (List<Image>) -> Unit){
+    f(getFirebaseImages(documentUri))
 }
 
+suspend fun forEachFirebaseImage(documentUri: String, f: (Image) -> Unit){
+    withFirebaseImages(documentUri, {it.forEach { f(it) }})
+}
 
 fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableList<DocumentDAO.DocumentWithTags> {
     val docWithTagsList: MutableList<DocumentDAO.DocumentWithTags> = mutableListOf()

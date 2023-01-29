@@ -17,15 +17,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import de.thm.ap.mobile_scanner.data.AppDatabase
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.R
 import de.thm.ap.mobile_scanner.data.forEachFirebaseImage
 import de.thm.ap.mobile_scanner.data.runWithDocumentSnapshot
 import de.thm.ap.mobile_scanner.model.Image
+import kotlinx.coroutines.launch
 
 class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
-    val dao = AppDatabase.getDb(app).documentDao()
     var document by mutableStateOf(Document())
     var images = mutableStateListOf<Image>()
 
@@ -41,8 +40,11 @@ class DocumentViewScreenViewModel(app: Application) : AndroidViewModel(app) {
                         Document(title = title as String?, uri = documentSnapshot.reference.id)
                     else -> Document(uri = documentSnapshot.reference.id)
                 }
-            forEachFirebaseImage(viewModelScope, documentSnapshot.reference.id) { image ->
-                images = images.also { it.add(image) }
+            viewModelScope.launch {
+                forEachFirebaseImage(documentSnapshot.reference.id) { image ->
+                    images = images.also { it.add(image) }
+                }
+
             }
         }
     }

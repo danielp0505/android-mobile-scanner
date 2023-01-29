@@ -107,9 +107,12 @@ class DocumentEditScreenViewModel(app: Application) : AndroidViewModel(app) {
                 is List<*> -> tags.forEach { documentTags.add(it.toString()) }
             }
 
-            forEachFirebaseImage(viewModelScope, documentSnapshot.reference.id) {
-                it.uuid?.let { uuid -> initialImageUUIDs.add(uuid) }
-                images.add(it)
+            viewModelScope.launch {
+                forEachFirebaseImage(documentSnapshot.reference.id) {
+                    it.uuid?.let { uuid -> initialImageUUIDs.add(uuid) }
+                    images.add(it)
+                }
+
             }
         }
     }

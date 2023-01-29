@@ -46,7 +46,6 @@ import de.thm.ap.mobile_scanner.model.Tag
 import kotlinx.coroutines.launch
 
 class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
-    private val docDAO: DocumentDAO = AppDatabase.getDb(app.baseContext).documentDao()
     var isSearching by mutableStateOf(false)
     fun set(it: Boolean) {
         searchString = ""
@@ -81,9 +80,10 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         selectedDocuments.clear()
     }
 
-    fun shareDocument(context: Context, documentId: Long) {
+    fun shareDocument(context: Context, documentUID: String) {
         viewModelScope.launch {
-            val images = docDAO.getDocumentWithImages(documentId).images.map { it.uri!!.toUri() }
+
+            val images = getFirebaseImages(documentUID).map { it.uri?.toUri() }
             Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                 type = "image/*"
                 var clip: ClipData? = null
@@ -263,7 +263,8 @@ fun DocumentsListScreen(
                         tags = documentWithTags.tags,
                         editDocument = {editDocument(documentWithTags.document.uri!!)},
 						openDocument = { openDocument(documentWithTags.document.uri!!) },
-                        shareDocument = {vm.shareDocument(context, documentWithTags.document.documentId!!)}
+                        //TODO
+                        shareDocument = {vm.shareDocument(context, documentWithTags.document.uri.toString())}
                     )
                     Divider(color = Color.Gray)
                 }
