@@ -60,7 +60,7 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
     val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
     var snapshotListener: ListenerRegistration? = null
-    var documents: List<DocumentDAO.DocumentWithTags> by mutableStateOf(emptyList())
+    var documents: List<DocumentWithTags> by mutableStateOf(emptyList())
 
     fun deleteDocument(document: Document) {
         document.uri?.let {
@@ -122,6 +122,8 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 }
+
+
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -273,11 +275,17 @@ fun DocumentsListScreen(
     }
 }
 
-private fun DocumentDAO.DocumentWithTags.matches(searchString: String): Boolean{
-    if (searchString.isEmpty()) return true
-    if (document.title?.contains(searchString, ignoreCase = true) ?: false) return true
-    if (tags.any { it.name?.contains(searchString, ignoreCase = true) ?:  false}) return true
-    return false
+data class DocumentWithTags(
+    val document: Document,
+    val tags: List<Tag>
+){
+    fun matches(searchString: String): Boolean{
+        if (searchString.isEmpty()) return true
+        if (document.title?.contains(searchString, ignoreCase = true) ?: false) return true
+        if (tags.any { it.name?.contains(searchString, ignoreCase = true) ?:  false}) return true
+        return false
+    }
+
 }
 
 

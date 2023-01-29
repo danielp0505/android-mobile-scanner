@@ -9,6 +9,7 @@ import com.google.firebase.storage.ktx.storage
 import de.thm.ap.mobile_scanner.model.Document
 import de.thm.ap.mobile_scanner.model.Image
 import de.thm.ap.mobile_scanner.model.Tag
+import de.thm.ap.mobile_scanner.ui.screens.DocumentWithTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,8 +50,8 @@ suspend fun forEachFirebaseImage(documentUri: String, f: (Image) -> Unit){
     withFirebaseImages(documentUri, {it.forEach { f(it) }})
 }
 
-fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableList<DocumentDAO.DocumentWithTags> {
-    val docWithTagsList: MutableList<DocumentDAO.DocumentWithTags> = mutableListOf()
+fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableList<DocumentWithTags> {
+    val docWithTagsList: MutableList<DocumentWithTags> = mutableListOf()
     var increment: Long = 0
     querySnapshot.forEach { documentSnapshot: DocumentSnapshot ->
         val title = documentSnapshot.get("title")
@@ -60,7 +61,7 @@ fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableLis
             var i: Long = 0
             val tagList: List<Tag> = if(tags is List<*>) tags.map{ tag -> Tag(i++, tag.toString())}
                                         else emptyList()
-            val documentWithTags = DocumentDAO.DocumentWithTags(
+            val documentWithTags = DocumentWithTags(
                 Document(documentId = increment, title = title as String?, uri = path), tagList
             )
             docWithTagsList.add(documentWithTags)
