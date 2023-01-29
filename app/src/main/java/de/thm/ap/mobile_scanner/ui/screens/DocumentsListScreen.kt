@@ -64,7 +64,9 @@ class DocumentsListViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteDocument(document: Document) {
         document.uri?.let {
-            deleteDocumentAndImages(it, viewModelScope)
+            viewModelScope.launch {
+                deleteDocumentAndImages(it)
+            }
         }
     }
 

@@ -16,33 +16,37 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.*
 
-fun runWithDocumentSnapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
-    ReferenceCollection.userDocReference
-        ?.collection("documents")
-        ?.document(documentUID)
-        ?.get()?.addOnSuccessListener(f)
-}
 val firebaseStorage: StorageReference? =
     FirebaseAuth.getInstance().currentUser?.let {
         Firebase.storage
             .getReference(it.uid)
     }
 
+fun runWithDocumentSnapshot(documentUID: String, f: (DocumentSnapshot) -> Unit) {
+    ReferenceCollection.userDocReference
+        ?.collection("documents")
+        ?.document(documentUID)
+        ?.get()?.addOnSuccessListener(f)
+}
+
 suspend fun getFirebaseImages(documentUri: String): List<Image>{
     val images =
-        ReferenceCollection.userDocReference?.collection("documents")?.document(documentUri)?.get()
-            ?.await()?.get("images")
-    if (!(images is List<*>)) return listOf()
+        ReferenceCollection
+            .userDocReference
+            ?.collection("documents")
+            ?.document(documentUri)
+            ?.get()?.await()?.get("images")
+    if (images !is List<*>) return listOf()
 
-    return images.map {
-        val uuid = UUID.fromString(it.toString())
-        val uri = firebaseStorage?.child(uuid.toString())?.downloadUrl?.await()
-
-        Image(uuid = UUID.fromString(it.toString()), uri = uri.toString())
+    return images.map{it.toString()}.map {
+        Image(
+            uuid = UUID.fromString(it),
+            uri = firebaseStorage?.child(it)?.downloadUrl?.await().toString()
+        )
     }
 
 }
-suspend  fun withFirebaseImages(documentUri: String, f: (List<Image>) -> Unit){
+suspend fun withFirebaseImages(documentUri: String, f: (List<Image>) -> Unit){
     f(getFirebaseImages(documentUri))
 }
 
@@ -51,54 +55,46 @@ suspend fun forEachFirebaseImage(documentUri: String, f: (Image) -> Unit){
 }
 
 fun convertQueryToDocumentWithTagsList(querySnapshot: QuerySnapshot): MutableList<DocumentWithTags> {
-    val docWithTagsList: MutableList<DocumentWithTags> = mutableListOf()
-    var increment: Long = 0
-    querySnapshot.forEach { documentSnapshot: DocumentSnapshot ->
+    return querySnapshot.mapIndexed { index, documentSnapshot: DocumentSnapshot ->
         val title = documentSnapshot.get("title")
         val tags = documentSnapshot.get("tags")
         val path = documentSnapshot.reference.id //use ID in place of uri
 
-            var i: Long = 0
-            val tagList: List<Tag> = if(tags is List<*>) tags.map{ tag -> Tag(i++, tag.toString())}
-                                        else emptyList()
-            val documentWithTags = DocumentWithTags(
-                Document(documentId = increment, title = title as String?, uri = path), tagList
+        val tagList: List<Tag> =
+            if (tags is List<*>) tags.mapIndexed { i, tag -> Tag(i.toLong(), tag.toString()) }
+            else emptyList()
+
+            DocumentWithTags(
+                Document(documentId = index.toLong(), title = title as String?, uri = path), tagList
             )
-            docWithTagsList.add(documentWithTags)
-            increment++
-    }
-    return docWithTagsList
+    }.toMutableList()
 }
 
 /**
  * Delete document and associated images given a valid document UID of the user.
  */
-
-fun deleteDocumentAndImages(UID: String, scope: CoroutineScope) {
+suspend fun deleteDocumentAndImages(documentUID: String) {
     //Document Path Format: users/{userUID}/documents/{documentUID}
     //Image Storage: {userUID}/{imageUUID}
-    val storage: StorageReference? =
-    FirebaseAuth.getInstance().currentUser?.let {
-        Firebase.storage
-            .getReference(it.uid)
-    }
-    //delete images first, if something goes wrong the user can retry deleting the document
-    ReferenceCollection.userDocReference?.collection("documents")?.document(UID).let { docRef ->
-        docRef?.get()?.addOnSuccessListener { documentSnapshot ->
-            val imageField = documentSnapshot.get("images")
 
-            if(imageField == null){
-                docRef.delete()
-            } else
-                if(imageField is List<*>) {
-                    val imageUIDs: List<String> = imageField.map{it.toString()}
-                    scope.launch(Dispatchers.IO) {
-                        imageUIDs.forEach { imageUID ->
-                            storage?.child(imageUID)?.delete()?.await()
-                        }
-                        docRef.delete()
-                    }
+    //delete images first, if something goes wrong the user can retry deleting the document
+    val docRef =
+        ReferenceCollection
+            .userDocReference
+            ?.collection("documents")
+            ?.document(documentUID)
+    if (docRef == null) return
+
+    val documentSnapshot = docRef.get().await()
+
+    val imageField = documentSnapshot.get("images")
+    when (imageField) {
+        null -> docRef.delete()
+        is List<*> -> {
+            imageField.map { it.toString() }.forEach { imageUID ->
+                firebaseStorage?.child(imageUID)?.delete()?.await()
             }
+            docRef.delete()
         }
     }
 }
